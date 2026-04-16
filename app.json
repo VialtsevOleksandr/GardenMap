@@ -24,6 +24,28 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2d6a4f"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "GardenMap needs location to show weather for your plot."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GardenMap needs access to photos to add crop images."
+        }
+      ]
+    ]
   }
 }

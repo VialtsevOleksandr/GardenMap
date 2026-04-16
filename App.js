@@ -1,20 +1,24 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import 'react-native-gesture-handler';
+import './app/i18n';
+import React, { Suspense } from 'react';
+import { View, ActivityIndicator } from 'react-native';
+import { enableScreens } from 'react-native-screens';
+import AppNavigator from './app/navigation/AppNavigator';
 
-export default function App() {
+enableScreens();
+
+function LoadingFallback() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator size="large" color="#2d6a4f" />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AppNavigator />
+    </Suspense>
+  );
+}
