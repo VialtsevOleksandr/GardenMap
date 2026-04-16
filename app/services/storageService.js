@@ -3,34 +3,48 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const ARCHIVE_KEY = 'gardenmap_archive';
 const DRY_DAYS_KEY = 'gardenmap_dry_days';
 
-export async function getArchive() {
+// ── Harvests (офлайн-кеш + вимога курсу "взаємодія з файлом") ──
+
+export async function getLocalHarvests() {
   const raw = await AsyncStorage.getItem(ARCHIVE_KEY);
   return raw ? JSON.parse(raw) : [];
 }
 
-export async function addHarvest(harvest) {
-  const archive = await getArchive();
-  archive.push({ ...harvest, id: Date.now().toString() });
-  await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+export async function syncHarvestToLocal(harvest) {
+  const list = await getLocalHarvests();
+  const exists = list.findIndex(h => h.id === harvest.id);
+  if (exists >= 0) {
+    list[exists] = harvest;
+  } else {
+    list.unshift(harvest);
+  }
+  await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(list));
 }
 
-export async function updateHarvest(id, updates) {
-  const archive = await getArchive();
-  const updated = archive.map(h => h.id === id ? { ...h, ...updates } : h);
-  await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(updated));
+export async function deleteLocalHarvest(id) {
+  const list = await getLocalHarvests();
+  await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(list.filter(h => h.id !== id)));
 }
 
-export async function deleteHarvest(id) {
-  const archive = await getArchive();
-  const filtered = archive.filter(h => h.id !== id);
-  await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(filtered));
+export async function clearLocalHarvests() {
+  await AsyncStorage.removeItem(ARCHIVE_KEY);
 }
+
+// ── Dry days counter (лічильник днів без дощу) ──
 
 export async function getDryDays() {
   const raw = await AsyncStorage.getItem(DRY_DAYS_KEY);
-  return raw ? JSON.parse(raw) : { count: 0, lastChecked: null };
+  return raw ? JSON.parse(raw) : { count: 0, lastRainAt: null, lastChecked: null };
 }
 
 export async function setDryDays(data) {
   await AsyncStorage.setItem(DRY_DAYS_KEY, JSON.stringify(data));
+}
+
+export async function resetDryDays() {
+  await AsyncStorage.setItem(DRY_DAYS_KEY, JSON.stringify({
+    count: 0,
+    lastRainAt: new Date().toISOString(),
+    lastChecked: new Date().toISOString(),
+  }));
 }

@@ -1,0 +1,46 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "beds",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "plotId", "order": "ASCENDING" },
+        { "fieldPath": "row", "order": "ASCENDING" },
+        { "fieldPath": "col", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cropId", "order": "ASCENDING" },
+        { "fieldPath": "harvestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "plotId", "order": "ASCENDING" },
+        { "fieldPath": "harvestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "bedId", "order": "ASCENDING" },
+        { "fieldPath": "harvestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "crops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "plotId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
