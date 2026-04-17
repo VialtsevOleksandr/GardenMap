@@ -12,9 +12,11 @@ export async function getBeds(plotId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function addBed(plotId, label, row, col, widthM = 1.0, heightM = 1.0) {
+export async function addBed(plotId, label, row, col, spanRows = 1, spanCols = 1, widthM = 1.0, heightM = 1.0) {
   const ref = await addDoc(collection(db, COL), {
     plotId, label, row, col,
+    spanRows: Number(spanRows),
+    spanCols: Number(spanCols),
     widthM: Number(widthM),
     heightM: Number(heightM),
     notes: '',

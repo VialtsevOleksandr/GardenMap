@@ -103,7 +103,7 @@ export default function PlotsListScreen({ navigation }) {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('Map', { mode: 'new' })}
+        onPress={() => navigation.navigate('AddPlotChoice')}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>

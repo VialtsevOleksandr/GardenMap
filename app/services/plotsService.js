@@ -12,14 +12,11 @@ export async function getPlots() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function addPlot(name, polygon, area) {
-  const ref = await addDoc(collection(db, COL), {
-    name,
-    polygon,
-    area,
-    createdAt: serverTimestamp(),
-    userId: null,
-  });
+export async function addPlot(name, polygon, area, widthM = null, lengthM = null) {
+  const doc = { name, polygon, area, createdAt: serverTimestamp(), userId: null };
+  if (widthM != null) doc.widthM  = Number(widthM);
+  if (lengthM != null) doc.lengthM = Number(lengthM);
+  const ref = await addDoc(collection(db, COL), doc);
   return ref.id;
 }
 

@@ -1,20 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView,
+  Alert, ActivityIndicator, ScrollView, Platform, Keyboard, Dimensions, KeyboardAvoidingView,
 } from 'react-native';
-import MapView, { Marker, Polygon, UrlTile } from 'react-native-maps';
+import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
 import { addPlot } from '../services/plotsService';
 
 const MAX_POINTS = 20;
 
-// ESRI tiles — free, no API key needed
-// Note: ESRI uses {z}/{y}/{x} order, not {z}/{x}/{y}
-const TILES = {
-  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  street:    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-};
 
 // Shoelace (Gauss) formula: GPS degrees → square meters
 function calcArea(coords) {
@@ -51,12 +45,30 @@ export default function MapScreen({ navigation }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [saving, setSaving]         = useState(false);
-  const [tileMode, setTileMode]     = useState('satellite');
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  // hybrid = satellite + назви вулиць/міст (зручніше для орієнтування)
+  const [mapType, setMapType] = useState('hybrid');
 
   useEffect(() => {
     navigation.setOptions({ title: t('mapTitle') });
-    return () => clearTimeout(debounceRef.current);
-  }, []);
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setIsKeyboardOpen(true);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardOpen(false);
+    });
+
+    return () => {
+      clearTimeout(debounceRef.current);
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [navigation, t]);
 
   // ── Search with debounce ────────────────────────────────────────────────
   function handleCityChange(text) {
@@ -83,6 +95,7 @@ export default function MapScreen({ navigation }) {
   }
 
   function selectSuggestion(item) {
+    Keyboard.dismiss();
     setCityQuery(item.display_name.split(',')[0]);
     setSuggestions([]);
     mapRef.current?.animateToRegion({
@@ -95,6 +108,7 @@ export default function MapScreen({ navigation }) {
 
   // ── Map tap — fix: read coordinate immediately before event is nullified ─
   function handleMapPress(e) {
+    Keyboard.dismiss();
     const coord = e?.nativeEvent?.coordinate;
     if (!coord) return;
     if (points.length >= MAX_POINTS) {
@@ -111,7 +125,7 @@ export default function MapScreen({ navigation }) {
     setSaving(true);
     try {
       await addPlot(plotName.trim(), points, Math.round(calcArea(points)));
-      navigation.goBack();
+      navigation.popToTop();
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
@@ -123,11 +137,13 @@ export default function MapScreen({ navigation }) {
   const canSave = points.length >= 3 && plotName.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAvoidingView 
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
     >
-      {/* ── Search section (renders above map via elevation/zIndex) ───── */}
+      <View style={styles.container}>
+        {/* ── Search section (renders above map via elevation/zIndex) ───── */}
       <View style={styles.searchSection}>
         <View style={styles.searchRow}>
           <TextInput
@@ -168,16 +184,16 @@ export default function MapScreen({ navigation }) {
         )}
       </View>
 
-      {/* ── Tile mode toggle ───────────────────────────────────────────── */}
+      {/* ── Map mode toggle ────────────────────────────────────────────── */}
       <View style={styles.tileToggle}>
-        {['satellite', 'street'].map(mode => (
+        {['hybrid', 'satellite', 'standard'].map(mode => (
           <TouchableOpacity
             key={mode}
-            style={[styles.tileBtn, tileMode === mode && styles.tileBtnActive]}
-            onPress={() => setTileMode(mode)}
+            style={[styles.tileBtn, mapType === mode && styles.tileBtnActive]}
+            onPress={() => setMapType(mode)}
           >
-            <Text style={[styles.tileTxt, tileMode === mode && styles.tileTxtActive]}>
-              {mode === 'satellite' ? t('tileSatellite') : t('tileMap')}
+            <Text style={[styles.tileTxt, mapType === mode && styles.tileTxtActive]}>
+              {mode === 'hybrid' ? t('tileHybrid') : mode === 'satellite' ? t('tileSatellite') : t('tileMap')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -187,20 +203,28 @@ export default function MapScreen({ navigation }) {
       <MapView
         ref={mapRef}
         style={styles.map}
-        mapType="none"
+        provider={PROVIDER_GOOGLE}
+        mapType={mapType}
         initialRegion={DEFAULT_REGION}
         onPress={handleMapPress}
       >
-        <UrlTile
-          urlTemplate={TILES[tileMode]}
-          maximumZ={19}
-          flipY={false}
-          tileSize={256}
-          zIndex={-1}
-        />
 
         {points.map((pt, i) => (
-          <Marker key={i} coordinate={pt} anchor={{ x: 0.5, y: 0.5 }}>
+          <Marker
+            key={i}
+            coordinate={pt}
+            anchor={{ x: 0.5, y: 0.5 }}
+            draggable
+            onDragEnd={(e) => {
+              const c = e?.nativeEvent?.coordinate;
+              if (!c) return;
+              setPoints(prev =>
+                prev.map((p, idx) =>
+                  idx === i ? { latitude: c.latitude, longitude: c.longitude } : p
+                )
+              );
+            }}
+          >
             <View style={styles.pin}>
               <Text style={styles.pinNum}>{i + 1}</Text>
             </View>
@@ -218,57 +242,74 @@ export default function MapScreen({ navigation }) {
       </MapView>
 
       {/* ── Bottom panel ──────────────────────────────────────────────── */}
-      <View style={styles.panel}>
-        {/* Status line */}
-        <View style={styles.statusRow}>
-          {points.length === 0 ? (
-            <Text style={styles.hint}>{t('tapToMark')}</Text>
-          ) : (
-            <>
-              <Text style={styles.counter}>
-                {t('pointsCount', { count: points.length, max: MAX_POINTS })}
-              </Text>
-              {points.length >= 3 && (
-                <Text style={styles.areaLabel}>
-                  {t('areaM2', { area: Math.round(area) })}
-                </Text>
+      <View style={[
+        styles.panel,
+        isKeyboardOpen && styles.panelCompact,
+      ]}>
+        {!isKeyboardOpen && (
+          <>
+            {/* Status line */}
+            <View style={styles.statusRow}>
+              {points.length === 0 ? (
+                <Text style={styles.hint}>{t('tapToMark')}</Text>
+              ) : (
+                <>
+                  <Text style={styles.counter}>
+                    {t('pointsCount', { count: points.length, max: MAX_POINTS })}
+                  </Text>
+                  {points.length >= 3 && (
+                    <Text style={styles.areaLabel}>
+                      {t('areaM2', { area: Math.round(area) })}
+                    </Text>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </View>
+            </View>
 
-        {/* Undo / Clear */}
-        <View style={styles.row}>
-          <TouchableOpacity
-            style={[styles.btnSec, !points.length && styles.btnSecOff]}
-            onPress={() => setPoints(p => p.slice(0, -1))}
-            disabled={!points.length}
-          >
-            <Text style={[styles.btnSecTxt, !points.length && styles.btnSecTxtOff]}>
-              {t('undoPoint')}
-            </Text>
-          </TouchableOpacity>
+            {/* Undo / Clear */}
+            <View style={styles.row}>
+              <TouchableOpacity
+                style={[styles.btnSec, !points.length && styles.btnSecOff]}
+                onPress={() => setPoints(p => p.slice(0, -1))}
+                disabled={!points.length}
+              >
+                <Text style={[styles.btnSecTxt, !points.length && styles.btnSecTxtOff]}>
+                  {t('undoPoint')}
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.btnSec, !points.length && styles.btnSecOff]}
-            onPress={() =>
-              Alert.alert(t('clearAll'), t('clearConfirm'), [
-                { text: t('cancel'), style: 'cancel' },
-                { text: t('clearAll'), style: 'destructive', onPress: () => setPoints([]) },
-              ])
-            }
-            disabled={!points.length}
-          >
-            <Text style={[styles.btnSecTxt, !points.length && styles.btnSecTxtOff]}>
-              {t('clearAll')}
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={[styles.btnSec, !points.length && styles.btnSecOff]}
+                onPress={() =>
+                  Alert.alert(t('clearAll'), t('clearConfirm'), [
+                    { text: t('cancel'), style: 'cancel' },
+                    { text: t('clearAll'), style: 'destructive', onPress: () => setPoints([]) },
+                  ])
+                }
+                disabled={!points.length}
+              >
+                <Text style={[styles.btnSecTxt, !points.length && styles.btnSecTxtOff]}>
+                  {t('clearAll')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {isKeyboardOpen && (
+          <View style={styles.compactMetaRow}>
+            <Text style={styles.counter}>{t('pointsCount', { count: points.length, max: MAX_POINTS })}</Text>
+            {points.length >= 3 && (
+              <Text style={styles.areaLabel}>{t('areaM2', { area: Math.round(area) })}</Text>
+            )}
+          </View>
+        )}
 
         {/* Plot name */}
         <TextInput
           style={styles.nameInput}
           placeholder={t('plotName')}
+          placeholderTextColor="#7a7a7a"
           value={plotName}
           onChangeText={setPlotName}
         />
@@ -284,12 +325,14 @@ export default function MapScreen({ navigation }) {
             : <Text style={styles.btnSaveTxt}>{t('savePlot')}</Text>}
         </TouchableOpacity>
       </View>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#111' },
+  container: { flex: 1 },
 
   // Search floats over the map via elevation
   searchSection: {
@@ -313,6 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     fontSize: 14,
+    color: '#1f1f1f',
     backgroundColor: '#fafafa',
   },
   searchSpinner: { marginLeft: 8 },
@@ -375,7 +419,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 11,
     paddingBottom: 14,
+    zIndex: 30,
     elevation: 12,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  panelCompact: {
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  compactMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   statusRow: {
     flexDirection: 'row',
@@ -408,8 +464,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 14,
+    color: '#1f1f1f',
     marginBottom: 10,
-    backgroundColor: '#fafafa',
+    backgroundColor: '#fff',
   },
 
   btnSave: {
