@@ -1,22 +1,25 @@
 import {
   collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
-  query, orderBy, serverTimestamp,
+  query, orderBy, where, serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 
 const COL = 'plots';
 
 export async function getPlots() {
-  const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
+  const userId = auth.currentUser?.uid;
+  if (!userId) return [];
+  const q = query(collection(db, COL), where('userId', '==', userId), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 export async function addPlot(name, polygon, area, widthM = null, lengthM = null) {
-  const doc = { name, polygon, area, createdAt: serverTimestamp(), userId: null };
-  if (widthM != null) doc.widthM  = Number(widthM);
-  if (lengthM != null) doc.lengthM = Number(lengthM);
-  const ref = await addDoc(collection(db, COL), doc);
+  const userId = auth.currentUser?.uid || null;
+  const data = { name, polygon, area, createdAt: serverTimestamp(), userId };
+  if (widthM != null) data.widthM = Number(widthM);
+  if (lengthM != null) data.lengthM = Number(lengthM);
+  const ref = await addDoc(collection(db, COL), data);
   return ref.id;
 }
 

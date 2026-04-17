@@ -6,12 +6,14 @@ export default function WeatherScreen() {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
+      <Text style={styles.icon}>🌦</Text>
       <Text style={styles.text}>{t('weather')}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  text: { fontSize: 20 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f7f4' },
+  icon: { fontSize: 56, marginBottom: 12 },
+  text: { fontSize: 16, color: '#888' },
 });

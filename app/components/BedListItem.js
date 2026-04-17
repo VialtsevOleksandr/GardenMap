@@ -11,10 +11,10 @@ function wateredInfo(lastWateredAt, t) {
   if (!lastWateredAt) return { text: t('neverWatered'), color: '#e57373', critical: true };
   const d = lastWateredAt.toDate ? lastWateredAt.toDate() : new Date(lastWateredAt);
   const daysAgo = Math.floor((Date.now() - d.getTime()) / 86400000);
-  if (daysAgo === 0) return { text: t('wateredToday'),                        color: '#388e3c', critical: false };
-  if (daysAgo === 1) return { text: t('wateredYesterday'),                    color: '#66bb6a', critical: false };
-  if (daysAgo <= 3)  return { text: t('wateredDaysAgo', { count: daysAgo }), color: '#fb8c00', critical: false };
-  return               { text: t('wateredCritical', { count: daysAgo }),  color: '#c62828', critical: true };
+  if (daysAgo === 0) return { text: t('wateredToday'),                         color: '#388e3c', critical: false };
+  if (daysAgo === 1) return { text: t('wateredYesterday'),                     color: '#66bb6a', critical: false };
+  if (daysAgo <= 3)  return { text: t('wateredDaysAgo', { count: daysAgo }),  color: '#fb8c00', critical: false };
+  return               { text: t('wateredCritical', { count: daysAgo }),   color: '#c62828', critical: true };
 }
 
 export default function BedListItem({ bed, crop, onPress, onWater }) {
@@ -39,13 +39,13 @@ export default function BedListItem({ bed, crop, onPress, onWater }) {
       onPress={onPress}
       activeOpacity={0.82}
     >
-      {/* ── Top row ─────────────────────────────────────────────────────────── */}
+      {/* Top row: icon + name + bed label */}
       <View style={styles.topRow}>
         {crop?.photoUri ? (
           <Image source={{ uri: crop.photoUri }} style={styles.icon} />
         ) : (
           <View style={[styles.iconBg, { backgroundColor: iconBg }]}>
-            <Text style={styles.iconEmoji}>{crop ? '🌱' : '🟫'}</Text>
+            <Text style={styles.iconEmoji}>{crop ? (crop.icon || '🌱') : '🟫'}</Text>
           </View>
         )}
 
@@ -58,31 +58,19 @@ export default function BedListItem({ bed, crop, onPress, onWater }) {
           <Text style={styles.bedLabel}>{bed.label}</Text>
         </View>
 
-        {/* Watering tap */}
-        {watered ? (
-          <TouchableOpacity style={styles.waterTap} onPress={() => onWater(crop)}>
-            <Text style={[styles.waterIcon, { color: watered.color }]}>
-              {watered.critical ? '⚠' : '💧'}
-            </Text>
-            <Text style={[styles.waterText, { color: watered.color }]} numberOfLines={2}>
-              {watered.text}
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.waterTap} />
-        )}
+        <Text style={styles.chevron}>›</Text>
       </View>
 
-      {/* ── Progress bar ─────────────────────────────────────────────────────── */}
+      {/* Progress bar + days label */}
       {pct != null ? (
         <>
           <View style={styles.progressBg}>
             <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: barColor }]} />
           </View>
-          <View style={styles.bottomRow}>
+          <View style={styles.progressRow}>
             <Text style={styles.pctText}>{Math.round(pct)}%</Text>
             {isReady ? (
-              <Text style={styles.readyText}>🍅 {t('readyToHarvest')}</Text>
+              <Text style={styles.readyText}>{crop?.icon || '🌿'} {t('readyToHarvest')}</Text>
             ) : (
               <Text style={styles.daysText}>{t('daysRemaining', { count: days })}</Text>
             )}
@@ -92,6 +80,29 @@ export default function BedListItem({ bed, crop, onPress, onWater }) {
         !crop && (
           <Text style={styles.noPlantHint}>{t('tapToAddCrop')}</Text>
         )
+      )}
+
+      {/* Watering action bar — only if there's a crop */}
+      {watered && (
+        <View style={[styles.waterBar, watered.critical && styles.waterBarCritical]}>
+          {/* Status indicator */}
+          <View style={styles.waterStatusWrap}>
+            <Text style={[styles.waterStatusText, { color: watered.color }]}>
+              {watered.critical ? '⚠️ ' : '💧 '}{watered.text}
+            </Text>
+          </View>
+
+          {/* Water button */}
+          <TouchableOpacity
+            style={[styles.waterBtn, watered.critical && styles.waterBtnCritical]}
+            onPress={(e) => { e.stopPropagation?.(); onWater(crop); }}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Text style={[styles.waterBtnText, watered.critical && styles.waterBtnTextCritical]}>
+              💧 {t('waterNow')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -124,9 +135,7 @@ const styles = StyleSheet.create({
   cropName: { fontSize: 16, fontWeight: '700', color: '#1a3c2d' },
   bedLabel:  { fontSize: 13, color: '#888', marginTop: 3 },
 
-  waterTap:  { maxWidth: 108, alignItems: 'flex-end' },
-  waterIcon: { fontSize: 16, textAlign: 'right' },
-  waterText: { fontSize: 11, fontWeight: '700', textAlign: 'right', lineHeight: 16, marginTop: 2 },
+  chevron: { fontSize: 22, color: '#ccc', fontWeight: '300' },
 
   progressBg: {
     height: 8, backgroundColor: '#e0e0e0',
@@ -134,12 +143,46 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: 8, borderRadius: 4 },
 
-  bottomRow: {
+  progressRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 10,
   },
   pctText:   { fontSize: 12, color: '#aaa', fontWeight: '600' },
   daysText:  { fontSize: 12, color: '#777' },
   readyText: { fontSize: 13, fontWeight: '800', color: '#c62828' },
 
   noPlantHint: { fontSize: 12, color: '#bbb', fontStyle: 'italic', marginTop: 2 },
+
+  // Watering bar
+  waterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0f7f4',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 2,
+  },
+  waterBarCritical: {
+    backgroundColor: '#fff3e0',
+  },
+
+  waterStatusWrap: { flex: 1 },
+  waterStatusText: { fontSize: 12, fontWeight: '600' },
+
+  waterBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#e3f2fd',
+    borderWidth: 1.5,
+    borderColor: '#64b5f6',
+  },
+  waterBtnCritical: {
+    backgroundColor: '#fff3e0',
+    borderColor: '#fb8c00',
+  },
+  waterBtnText:         { fontSize: 12, fontWeight: '700', color: '#1565c0' },
+  waterBtnTextCritical: { color: '#e65100' },
 });
