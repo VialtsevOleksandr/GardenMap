@@ -3,6 +3,7 @@ import {
   query, orderBy, where, serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
+import { getBeds, deleteBed } from './bedsService';
 
 const COL = 'plots';
 
@@ -27,6 +28,9 @@ export async function updatePlot(id, updates) {
   await updateDoc(doc(db, COL, id), updates);
 }
 
+// Cascade: deletes all beds (and their crops, harvests, photos) before deleting the plot.
 export async function deletePlot(id) {
+  const beds = await getBeds(id);
+  await Promise.all(beds.map(b => deleteBed(b.id)));
   await deleteDoc(doc(db, COL, id));
 }

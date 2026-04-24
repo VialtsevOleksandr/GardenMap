@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const ARCHIVE_KEY = 'gardenmap_archive';
 const DRY_DAYS_KEY = 'gardenmap_dry_days';
 
-// ── Harvests (офлайн-кеш + вимога курсу "взаємодія з файлом") ──
+// ── Harvests (офлайн-кеш) ──
 
 export async function getLocalHarvests() {
   const raw = await AsyncStorage.getItem(ARCHIVE_KEY);
@@ -13,12 +13,15 @@ export async function getLocalHarvests() {
 export async function syncHarvestToLocal(harvest) {
   const list = await getLocalHarvests();
   const exists = list.findIndex(h => h.id === harvest.id);
-  if (exists >= 0) {
-    list[exists] = harvest;
-  } else {
-    list.unshift(harvest);
-  }
+  if (exists >= 0) list[exists] = harvest;
+  else list.unshift(harvest);
   await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(list));
+}
+
+// Returns harvests saved locally but not yet synced to Firestore
+export async function getPendingHarvests() {
+  const list = await getLocalHarvests();
+  return list.filter(h => h._pending === true);
 }
 
 export async function deleteLocalHarvest(id) {
