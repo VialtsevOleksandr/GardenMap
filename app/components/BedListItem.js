@@ -1,5 +1,6 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import PlantIcon from './PlantIcon';
 
 function daysRem(crop) {
   if (!crop?.plantedAt) return null;
@@ -45,7 +46,17 @@ export default function BedListItem({ bed, crop, onPress, onWater }) {
           <Image source={{ uri: crop.photoUri }} style={styles.icon} />
         ) : (
           <View style={[styles.iconBg, { backgroundColor: iconBg }]}>
-            <Text style={styles.iconEmoji}>{crop ? (crop.icon || '🌱') : '🟫'}</Text>
+            {crop ? (
+              <PlantIcon
+                plantId={crop.plantId}
+                name={crop.name}
+                icon={crop.icon}
+                size={26}
+                textStyle={styles.iconEmoji}
+              />
+            ) : (
+              <Text style={styles.iconEmoji}>🟫</Text>
+            )}
           </View>
         )}
 
@@ -70,7 +81,17 @@ export default function BedListItem({ bed, crop, onPress, onWater }) {
           <View style={styles.progressRow}>
             <Text style={styles.pctText}>{Math.round(pct)}%</Text>
             {isReady ? (
-              <Text style={styles.readyText}>{crop?.icon || '🌿'} {t('readyToHarvest')}</Text>
+              <View style={styles.readyWrap}>
+                <PlantIcon
+                  plantId={crop?.plantId}
+                  name={crop?.name}
+                  icon={crop?.icon}
+                  size={14}
+                  textStyle={styles.readyText}
+                  fallback="🌿"
+                />
+                <Text style={styles.readyText}>{t('readyToHarvest')}</Text>
+              </View>
             ) : (
               <Text style={styles.daysText}>{t('daysRemaining', { count: days })}</Text>
             )}
@@ -149,6 +170,7 @@ const styles = StyleSheet.create({
   },
   pctText:   { fontSize: 12, color: '#aaa', fontWeight: '600' },
   daysText:  { fontSize: 12, color: '#777' },
+  readyWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   readyText: { fontSize: 13, fontWeight: '800', color: '#c62828' },
 
   noPlantHint: { fontSize: 12, color: '#bbb', fontStyle: 'italic', marginTop: 2 },

@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import PlantIcon from './PlantIcon';
+import { resolveVariety } from '../services/varietiesCatalog';
 
 export function daysRemaining(crop) {
   if (!crop?.plantedAt) return null;
@@ -126,13 +128,19 @@ export default function CropCard({
           <Image source={{ uri: crop.photoUri }} style={styles.photo} />
         ) : (
           <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoEmoji}>{crop.icon || '🌱'}</Text>
+            <PlantIcon
+              plantId={crop.plantId}
+              name={crop.name}
+              icon={crop.icon}
+              size={30}
+              textStyle={styles.photoEmoji}
+            />
           </View>
         )}
 
         <View style={styles.info}>
           <Text style={styles.name} numberOfLines={1}>{crop.name}</Text>
-          {!!crop.variety && <Text style={styles.variety}>{crop.variety}</Text>}
+          {!!resolveVariety(crop, t) && <Text style={styles.variety}>{resolveVariety(crop, t)}</Text>}
           <Text style={styles.date}>{t('planted', { date: formatDate(crop.plantedAt) })}</Text>
           {isActive && !!timerText && (
             <Text style={[styles.timer, timerStyle(days)]}>{timerText}</Text>

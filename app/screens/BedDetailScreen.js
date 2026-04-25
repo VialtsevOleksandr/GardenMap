@@ -8,7 +8,11 @@ import { useTranslation } from 'react-i18next';
 import { getCrops, deleteCrop, deactivateCrop, markWatered } from '../services/cropsService';
 import { addHarvest, updateHarvest, deleteHarvest, getHarvestsForBed } from '../services/harvestsService';
 import { getRotationAdvice, getNextCropSuggestions } from '../services/rotationRules';
+import { getCatalogPlants } from '../services/plantsCatalog';
+import { resolveVariety } from '../services/varietiesCatalog';
 import CropCard from '../components/CropCard';
+import PlantIcon from '../components/PlantIcon';
+import { sanitizeDecimal } from '../utils/inputSanitizers';
 
 const QUALITY_OPTIONS = ['excellent', 'good', 'average', 'poor'];
 const QUALITY_EMOJI   = { excellent: '🌟', good: '👍', average: '😐', poor: '👎' };
@@ -134,7 +138,11 @@ export default function BedDetailScreen({ route, navigation }) {
   async function saveHarvest() {
     if (!harvestModal) return;
     const { crop, isFinal, editHarvest } = harvestModal;
-    const yieldNum = parseFloat(hYieldKg) || 0;
+    const yieldNum = parseFloat(hYieldKg);
+    if (!(yieldNum > 0)) {
+      Alert.alert(t('yieldKg'), '> 0');
+      return;
+    }
     setHSaving(true);
     try {
       if (editHarvest) {
@@ -158,9 +166,20 @@ export default function BedDetailScreen({ route, navigation }) {
   const activeCrops = crops.filter(c => c.isActive);
   const pastCrops   = crops.filter(c => !c.isActive).slice().reverse();
 
-  const cropNames   = crops.map(c => c.name);
-  const advice      = getRotationAdvice(cropNames);
-  const suggestions = getNextCropSuggestions(cropNames);
+  const cropIds     = crops.map(c => c.plantId).filter(Boolean);
+  const advice      = getRotationAdvice(cropIds);
+  const suggestions = getNextCropSuggestions(cropIds);
+
+  // Translate reasonParams: { cropKey, prevKey } → { crop, prev } for i18n
+  function resolveAdviceParams(params) {
+    if (!params) return {};
+    const resolved = {};
+    if (params.cropKey) resolved.crop = t(params.cropKey);
+    if (params.prevKey) resolved.prev = t(params.prevKey);
+    if (params.crop && !params.cropKey) resolved.crop = params.crop;
+    if (params.prev && !params.prevKey) resolved.prev = params.prev;
+    return resolved;
+  }
 
   const adviceBg         = { good: '#e8f5e9', ok: '#fffde7', bad: '#ffebee' }[advice.status] ?? '#f5f5f5';
   const adviceIcon       = { good: '✅', ok: 'ℹ️', bad: '⚠️' }[advice.status];
@@ -197,7 +216,7 @@ export default function BedDetailScreen({ route, navigation }) {
               </View>
             </View>
             <Text style={styles.rotationReason}>
-              {t(advice.reasonKey, advice.reasonParams ?? {})}
+              {t(advice.reasonKey, resolveAdviceParams(advice.reasonParams))}
             </Text>
 
             <View style={styles.divider} />
@@ -206,12 +225,12 @@ export default function BedDetailScreen({ route, navigation }) {
             {suggestions.recommended.length > 0 ? (
               <>
                 <Text style={styles.chipGroupLabel}>
-                  {t('rotation.recommend', { crop: suggestions.lastCrop })}
+                  {t('rotation.recommend', { crop: suggestions.lastCropId ? t(`plantName.${suggestions.lastCropId}`) : '' })}
                 </Text>
                 <View style={styles.chipsRow}>
-                  {suggestions.recommended.map(c => (
-                    <View key={c} style={styles.chipGood}>
-                      <Text style={styles.chipGoodText}>{c}</Text>
+                  {suggestions.recommended.map(id => (
+                    <View key={id} style={styles.chipGood}>
+                      <Text style={styles.chipGoodText}>{t(`plantName.${id}`)}</Text>
                     </View>
                   ))}
                 </View>
@@ -223,12 +242,12 @@ export default function BedDetailScreen({ route, navigation }) {
             {suggestions.avoid.length > 0 && (
               <>
                 <Text style={[styles.chipGroupLabel, styles.chipGroupLabelBad]}>
-                  {t('rotation.avoidLabel', { crop: suggestions.lastCrop })}
+                  {t('rotation.avoidLabel', { crop: suggestions.lastCropId ? t(`plantName.${suggestions.lastCropId}`) : '' })}
                 </Text>
                 <View style={styles.chipsRow}>
-                  {suggestions.avoid.map(c => (
-                    <View key={c} style={styles.chipBad}>
-                      <Text style={styles.chipBadText}>{c}</Text>
+                  {suggestions.avoid.map(id => (
+                    <View key={id} style={styles.chipBad}>
+                      <Text style={styles.chipBadText}>{t(`plantName.${id}`)}</Text>
                     </View>
                   ))}
                 </View>
@@ -295,11 +314,17 @@ export default function BedDetailScreen({ route, navigation }) {
                     {/* Crop info row */}
                     <View style={styles.pastTopRow}>
                       <View style={styles.pastIconWrap}>
-                        <Text style={styles.pastIcon}>{c.icon || '🌱'}</Text>
+                        <PlantIcon
+                          plantId={c.plantId}
+                          name={c.name}
+                          icon={c.icon}
+                          size={24}
+                          textStyle={styles.pastIcon}
+                        />
                       </View>
                       <View style={styles.pastInfo}>
                         <Text style={styles.pastName}>
-                          {c.name}{c.variety ? ` (${c.variety})` : ''}
+                          {c.name}{resolveVariety(c, t) ? ` (${resolveVariety(c, t)})` : ''}
                         </Text>
                         <Text style={styles.pastDate}>
                           {t('planted', { date: formatDate(c.plantedAt) })}
@@ -406,9 +431,15 @@ export default function BedDetailScreen({ route, navigation }) {
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.modalSheet}>
+          <ScrollView
+            style={styles.modalSheet}
+            contentContainerStyle={{ paddingBottom: 44 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
             <View style={styles.modalHandle} />
 
             <Text style={styles.modalTitle}>
@@ -447,9 +478,9 @@ export default function BedDetailScreen({ route, navigation }) {
             <TextInput
               style={styles.yieldInput}
               value={hYieldKg}
-              onChangeText={setHYieldKg}
+              onChangeText={v => setHYieldKg(sanitizeDecimal(v))}
               keyboardType="decimal-pad"
-              placeholder={hUnit === 'kg' ? '0.0' : '0'}
+              placeholder={hUnit === 'kg' ? '0.5' : '1'}
               placeholderTextColor="#bbb"
             />
 
@@ -510,7 +541,7 @@ export default function BedDetailScreen({ route, navigation }) {
             <TouchableOpacity style={styles.cancelSheetBtn} onPress={closeHarvestModal}>
               <Text style={styles.cancelSheetText}>{t('cancel')}</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -655,7 +686,7 @@ const styles = StyleSheet.create({
   modalSheet: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: 44,
+    padding: 24,
   },
   modalHandle: {
     width: 40, height: 4, backgroundColor: '#ddd',

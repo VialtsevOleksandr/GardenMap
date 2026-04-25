@@ -43,3 +43,5 @@ yarn-error.*
 
 .firebaserc
 firebase.json
+
+/scripts

@@ -26,12 +26,14 @@ export async function getActiveCropsForPlot(plotId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function addCrop({ bedId, plotId, name, variety, photoUri, icon, harvestDays, notes }) {
+export async function addCrop({ bedId, plotId, plantId, name, variety, varietyId, photoUri, icon, harvestDays, notes }) {
   const ref = await addDoc(collection(db, COL), {
     bedId,
     plotId,
+    plantId: plantId || null,
     name,
     variety: variety || '',
+    varietyId: varietyId || null,
     photoUri: photoUri || null,
     icon: icon || null,
     plantedAt: serverTimestamp(),

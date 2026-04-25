@@ -1,17 +1,17 @@
 import { db, auth } from './firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, where, orderBy } from 'firebase/firestore';
 
-export async function addPlant({ name, variety, harvestDays, photoUri, icon, notes }) {
+export async function addPlant({ plantId, variety, varietyId, harvestDays, photoUri, notes }) {
   const userId = auth.currentUser?.uid;
   if (!userId) throw new Error('Not authenticated');
 
   const ref = await addDoc(collection(db, 'plants'), {
     userId,
-    name,
+    plantId: plantId || null,
     variety: variety || '',
+    varietyId: varietyId || null,
     harvestDays: Number(harvestDays),
     photoUri: photoUri || null,
-    icon: icon || null,
     notes: notes || '',
     createdAt: new Date(),
   });
@@ -22,29 +22,28 @@ export async function getPlants() {
   const userId = auth.currentUser?.uid;
   if (!userId) throw new Error('Not authenticated');
 
-  const q = query(collection(db, 'plants'), where('userId', '==', userId), orderBy('name', 'asc'));
+  const q = query(collection(db, 'plants'), where('userId', '==', userId), orderBy('createdAt', 'desc'));
   const sn = await getDocs(q);
   return sn.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 export async function getAllPlants() {
-  // Returns only the shared community catalog (userId === 'community')
   const q = query(
     collection(db, 'plants'),
     where('userId', '==', 'community'),
-    orderBy('name', 'asc')
+    orderBy('plantId', 'asc')
   );
   const sn = await getDocs(q);
   return sn.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function updatePlant(plantId, { name, variety, harvestDays, photoUri, icon, notes }) {
-  await updateDoc(doc(db, 'plants', plantId), {
-    name,
+export async function updatePlant(docId, { plantId, variety, varietyId, harvestDays, photoUri, notes }) {
+  await updateDoc(doc(db, 'plants', docId), {
+    plantId: plantId || null,
     variety: variety || '',
+    varietyId: varietyId || null,
     harvestDays: Number(harvestDays),
     photoUri: photoUri || null,
-    icon: icon || null,
     notes: notes || '',
   });
 }

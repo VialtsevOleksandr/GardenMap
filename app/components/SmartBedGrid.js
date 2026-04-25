@@ -1,9 +1,10 @@
-import { useRef, useMemo, useState, useCallback } from 'react';
+import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, TextInput, Alert,
   StyleSheet, Dimensions, PanResponder, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import PlantIcon from './PlantIcon';
 
 const SCREEN_W = Dimensions.get('window').width;
 const H_PAD    = 12;
@@ -83,6 +84,14 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
   const [showModal, setShowModal]         = useState(false);
   const [bedLabelInput, setBedLabelInput] = useState('');
   const [saving, setSaving]               = useState(false);
+  const [showBedInfo, setShowBedInfo]     = useState(false);
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setShowBedInfo(prev => !prev);
+    }, 5000);
+    return () => clearInterval(timerId);
+  }, []);
 
   // ── Grid dimensions ──────────────────────────────────────────────────────────
   const gridInfo = useMemo(() => {
@@ -299,11 +308,19 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
                   c >= normSel.minC && c <= normSel.maxC;
                 const { bg, border, text } = cellColor(crop, isInactive, isSelected, !!bed);
                 const isTopLeft  = bed && bed.row === r && bed.col === c;
+                const isCheckerCell = bed
+                  ? ((r - bed.row) + (c - bed.col)) % 2 === 0
+                  : false;
                 const days       = crop ? daysRem(crop) : null;
                 const daysLabel  = !crop ? null :
                   days == null ? null :
                   days <= 0 ? '🍅' :
                   days <= 7 ? `${days}д!` : `${days}д`;
+                const infoModeText = days == null
+                  ? '—'
+                  : days <= 0
+                    ? t('harvestTime')
+                    : `${days}${t('days')}`;
 
                 const cellStyle = [
                   styles.cell,
@@ -319,6 +336,26 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
 
                 const content = isInactive ? (
                   <Text style={[styles.inactiveIcon, { color: text }]}>⊘</Text>
+                ) : bed && crop && !editMode && !showBedInfo && isCheckerCell ? (
+                  <PlantIcon
+                    plantId={crop.plantId}
+                    id={crop.id}
+                    itemId={crop.itemId}
+                    name={crop.name}
+                    icon={crop.icon}
+                    size={20}
+                    fallback="🌱"
+                    textStyle={[styles.cropIconFallback, { color: text }]}
+                  />
+                ) : bed && crop && !editMode && showBedInfo && isTopLeft ? (
+                  <>
+                    <Text style={[styles.bedLabelTxt, styles.bedInfoLabel, { color: text }]} numberOfLines={1}>
+                      {bed.label}
+                    </Text>
+                    <Text style={[styles.daysTxt, styles.bedInfoDays, { color: text }]} numberOfLines={1}>
+                      {infoModeText}
+                    </Text>
+                  </>
                 ) : isTopLeft ? (
                   <>
                     <Text style={[styles.bedLabelTxt, { color: text }]} numberOfLines={1}>
@@ -444,6 +481,9 @@ const styles = StyleSheet.create({
   bedLabelTxt: { fontSize: 10, fontWeight: '800', textAlign: 'center' },
   cropTxt:     { fontSize: 9,  fontWeight: '600', textAlign: 'center', marginTop: 1 },
   daysTxt:     { fontSize: 9,  fontWeight: '700', marginTop: 1 },
+  cropIconFallback: { fontSize: 20 },
+  bedInfoLabel: { fontSize: 11, fontWeight: '800' },
+  bedInfoDays: { fontSize: 9, fontWeight: '700' },
   inactiveIcon:{ fontSize: 14 },
   emptyHint:   { fontSize: 16, opacity: 0.3 },
 

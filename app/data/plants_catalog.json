@@ -1,0 +1,128 @@
+[
+  {
+    "id": "tomato",
+    "icon": "🍅",
+    "badAfter": ["tomato", "pepper", "eggplant", "potato", "strawberry"],
+    "goodAfter": ["carrot", "onion", "cucumber", "cabbage"]
+  },
+  {
+    "id": "cucumber",
+    "icon": "🥒",
+    "badAfter": ["cucumber", "zucchini", "pumpkin"],
+    "goodAfter": ["onion", "garlic", "cabbage", "tomato"]
+  },
+  {
+    "id": "carrot",
+    "icon": "🥕",
+    "badAfter": ["carrot", "parsley", "dill"],
+    "goodAfter": ["onion", "garlic", "tomato", "cucumber", "strawberry"]
+  },
+  {
+    "id": "onion",
+    "icon": "🧅",
+    "badAfter": ["onion", "garlic"],
+    "goodAfter": ["cucumber", "carrot", "tomato", "beet", "strawberry"]
+  },
+  {
+    "id": "garlic",
+    "icon": "🧄",
+    "badAfter": ["garlic", "onion"],
+    "goodAfter": ["cucumber", "carrot", "cabbage", "strawberry"]
+  },
+  {
+    "id": "cabbage",
+    "icon": "🥬",
+    "badAfter": ["cabbage", "radish"],
+    "goodAfter": ["cucumber", "onion", "tomato", "peas", "bean"]
+  },
+  {
+    "id": "potato",
+    "icon": "🥔",
+    "badAfter": ["potato", "tomato", "pepper", "eggplant", "strawberry"],
+    "goodAfter": ["cabbage", "cucumber", "onion", "peas", "bean"]
+  },
+  {
+    "id": "pepper",
+    "icon": "🌶️",
+    "badAfter": ["pepper", "tomato", "eggplant", "potato", "strawberry"],
+    "goodAfter": ["carrot", "onion", "cucumber"]
+  },
+  {
+    "id": "eggplant",
+    "icon": "🍆",
+    "badAfter": ["eggplant", "tomato", "pepper", "potato", "strawberry"],
+    "goodAfter": ["carrot", "onion", "cucumber"]
+  },
+  {
+    "id": "zucchini",
+    "icon": "🫑",
+    "badAfter": ["zucchini", "cucumber", "pumpkin"],
+    "goodAfter": ["onion", "tomato", "potato", "bean"]
+  },
+  {
+    "id": "pumpkin",
+    "icon": "🎃",
+    "badAfter": ["pumpkin", "zucchini", "cucumber"],
+    "goodAfter": ["onion", "tomato", "potato", "bean"]
+  },
+  {
+    "id": "beet",
+    "icon": "🍠",
+    "badAfter": ["beet"],
+    "goodAfter": ["cucumber", "onion", "tomato"]
+  },
+  {
+    "id": "peas",
+    "icon": "🫛",
+    "badAfter": ["peas", "bean"],
+    "goodAfter": ["cabbage", "potato", "tomato", "carrot", "strawberry"]
+  },
+  {
+    "id": "bean",
+    "icon": "🫘",
+    "badAfter": ["bean", "peas"],
+    "goodAfter": ["cabbage", "potato", "tomato", "carrot", "strawberry"]
+  },
+  {
+    "id": "corn",
+    "icon": "🌽",
+    "badAfter": ["corn"],
+    "goodAfter": ["cucumber", "cabbage", "bean", "peas"]
+  },
+  {
+    "id": "radish",
+    "icon": "🫜",
+    "badAfter": ["radish", "cabbage"],
+    "goodAfter": ["cucumber", "tomato", "onion"]
+  },
+  {
+    "id": "parsley",
+    "icon": "🌿",
+    "badAfter": ["parsley", "carrot", "dill"],
+    "goodAfter": ["cucumber", "tomato", "onion", "strawberry"]
+  },
+  {
+    "id": "dill",
+    "icon": "🌿",
+    "badAfter": ["dill", "parsley", "carrot"],
+    "goodAfter": ["cucumber", "tomato", "cabbage", "strawberry"]
+  },
+  {
+    "id": "lettuce",
+    "icon": "🥗",
+    "badAfter": ["lettuce"],
+    "goodAfter": ["cucumber", "carrot", "radish", "onion"]
+  },
+  {
+    "id": "strawberry",
+    "icon": "🍓",
+    "badAfter": ["strawberry"],
+    "goodAfter": ["garlic", "onion", "parsley"]
+  },
+  {
+    "id": "legume",
+    "icon": "🌾",
+    "badAfter": ["legume", "peas", "bean"],
+    "goodAfter": ["cabbage", "potato", "tomato", "carrot"]
+  }
+]

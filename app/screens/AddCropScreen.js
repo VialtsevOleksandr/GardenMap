@@ -9,12 +9,16 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useTranslation } from 'react-i18next';
 import { addCrop } from '../services/cropsService';
 import { getPlants, getAllPlants, addPlant } from '../services/plantsService';
+import { findCatalogPlant } from '../services/plantsCatalog';
+import { resolveVariety } from '../services/varietiesCatalog';
+import { sanitizeInt } from '../utils/inputSanitizers';
+import PlantIcon from '../components/PlantIcon';
 
 const SCREEN_W = Dimensions.get('window').width;
 const CARD_W = (SCREEN_W - 16 * 3) / 2;
 
 // ── Картка рослини ────────────────────────────────────────────────────────────
-function PlantCard({ plant, selected, onPress }) {
+function PlantCard({ plant, selected, onPress, t }) {
   return (
     <TouchableOpacity
       style={[styles.plantCard, selected && styles.plantCardSelected]}
@@ -26,14 +30,22 @@ function PlantCard({ plant, selected, onPress }) {
         {plant.photoUri ? (
           <Image source={{ uri: plant.photoUri }} style={styles.plantCardPhoto} />
         ) : (
-          <Text style={styles.plantCardIcon}>{plant.icon || '🌱'}</Text>
+          <PlantIcon
+            plantId={plant.plantId}
+            name={plant.name}
+            icon={plant.icon}
+            size={30}
+            textStyle={styles.plantCardIcon}
+          />
         )}
       </View>
       <Text style={styles.plantCardName} numberOfLines={1}>{plant.name}</Text>
-      {!!plant.variety && (
-        <Text style={styles.plantCardVariety} numberOfLines={1}>{plant.variety}</Text>
+      {!!plant.varietyDisplay && (
+        <Text style={styles.plantCardVariety} numberOfLines={1}>{plant.varietyDisplay}</Text>
       )}
-      <Text style={styles.plantCardDays}>⏱ {plant.harvestDays} дн.</Text>
+      {!!plant.harvestDays && (
+        <Text style={styles.plantCardDays}>⏱ {plant.harvestDays} {t('days')}</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -45,13 +57,15 @@ export default function AddCropScreen({ route, navigation }) {
 
   // Plants data
   const [myPlants, setMyPlants] = useState([]);
-  const [catalogPlants, setCatalogPlants] = useState([]);
+  const [communityPlants, setCommunityPlants] = useState([]);
   const [loadingPlants, setLoadingPlants] = useState(true);
 
   // Picker state
   const [activeTab, setActiveTab] = useState('catalog');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPlantId, setSelectedPlantId] = useState(null);
+  const [selectedPlantId, setSelectedPlantId] = useState(null); // Firestore doc id
+  const [selectedPlantKey, setSelectedPlantKey] = useState(null); // stable catalog plantId key
+  const [selectedVarietyId, setSelectedVarietyId] = useState(null); // varietyId for community
 
   // Form
   const [name, setName] = useState('');
@@ -66,40 +80,60 @@ export default function AddCropScreen({ route, navigation }) {
 
   useEffect(() => {
     Promise.all([getPlants(), getAllPlants()])
-      .then(([mine, catalog]) => {
+      .then(([mine, community]) => {
         setMyPlants(mine);
-        setCatalogPlants(catalog);
+        setCommunityPlants(community);
       })
       .catch(console.log)
       .finally(() => setLoadingPlants(false));
   }, []);
 
+  // Enrich both lists: localized name + icon from catalog
+  const enrichPlant = (p) => {
+    const cat = p.plantId ? findCatalogPlant(p.plantId) : null;
+    return {
+      ...p,
+      name: cat ? t(`plantName.${p.plantId}`) : (p.name || ''),
+      icon: cat?.icon ?? p.icon ?? '🌱',
+      varietyDisplay: resolveVariety(p, t),
+    };
+  };
+
+  const enrichedCommunity = useMemo(() => communityPlants.map(enrichPlant), [communityPlants, t]);
+  const enrichedMine      = useMemo(() => myPlants.map(enrichPlant),      [myPlants, t]);
+
   const displayedPlants = useMemo(() => {
-    const source = activeTab === 'my' ? myPlants : catalogPlants;
+    const source = activeTab === 'my' ? enrichedMine : enrichedCommunity;
     if (!searchQuery.trim()) return source;
     const q = searchQuery.toLowerCase();
     return source.filter(p =>
       p.name.toLowerCase().includes(q) ||
-      (p.variety && p.variety.toLowerCase().includes(q))
+      p.varietyDisplay.toLowerCase().includes(q)
     );
-  }, [activeTab, myPlants, catalogPlants, searchQuery]);
+  }, [activeTab, enrichedMine, enrichedCommunity, searchQuery]);
 
   const handleSelectPlant = (p) => {
     setSelectedPlantId(p.id);
+    setSelectedPlantKey(p.plantId || null);
+    setSelectedVarietyId(p.varietyId || null);
     setName(p.name);
-    setVariety(p.variety || '');
-    setHarvestDays(String(p.harvestDays));
+    // For community: show localized variety; for personal: show stored variety text
+    setVariety(p.varietyDisplay || p.variety || '');
+    if (p.harvestDays) setHarvestDays(String(p.harvestDays));
     setPhotoUri(p.photoUri || null);
     setIcon(p.icon || null);
   };
 
   const handleClearSelection = () => {
     setSelectedPlantId(null);
+    setSelectedPlantKey(null);
+    setSelectedVarietyId(null);
     setName('');
     setVariety('');
     setHarvestDays('');
     setPhotoUri(null);
     setIcon(null);
+    setSearchQuery('');
   };
 
   async function pickPhoto() {
@@ -134,10 +168,31 @@ export default function AddCropScreen({ route, navigation }) {
     }
     setSaving(true);
     try {
+      const plantId = selectedPlantKey || null;
+      const varietyId = selectedVarietyId || null;
+      // For community plants varietyId is set; personal/custom use free-text variety
+      const varietyText = varietyId ? '' : variety.trim();
       if (saveToDict) {
-        await addPlant({ name: name.trim(), variety: variety.trim(), photoUri, icon, harvestDays: days, notes: notes.trim() });
+        await addPlant({
+          plantId,
+          variety: varietyText,
+          varietyId,
+          photoUri,
+          harvestDays: days,
+          notes: notes.trim(),
+        });
       }
-      await addCrop({ bedId, plotId, name: name.trim(), variety: variety.trim(), photoUri, icon, harvestDays: days, notes: notes.trim() });
+      await addCrop({
+        bedId, plotId,
+        plantId,
+        name: name.trim(),
+        variety: varietyText,
+        varietyId,
+        photoUri,
+        icon,
+        harvestDays: days,
+        notes: notes.trim(),
+      });
       navigation.goBack();
     } catch (e) {
       Alert.alert('Error', e.message);
@@ -145,6 +200,8 @@ export default function AddCropScreen({ route, navigation }) {
       setSaving(false);
     }
   }
+
+  const canSave = name.trim().length > 0 && Number(harvestDays) >= 1;
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -186,7 +243,7 @@ export default function AddCropScreen({ route, navigation }) {
         ))}
       </View>
 
-      {/* Plant grid — показуємо лише якщо є пошуковий запит */}
+      {/* Plant grid — visible only while searching */}
       {searchQuery.length > 0 && (
         loadingPlants ? (
           <ActivityIndicator color="#2d6a4f" style={{ marginVertical: 24 }} />
@@ -200,6 +257,7 @@ export default function AddCropScreen({ route, navigation }) {
                 plant={p}
                 selected={selectedPlantId === p.id}
                 onPress={() => handleSelectPlant(p)}
+                t={t}
               />
             ))}
           </View>
@@ -208,7 +266,7 @@ export default function AddCropScreen({ route, navigation }) {
 
       <View style={styles.divider} />
 
-      {/* Кнопка скинути вибір (якщо є) */}
+      {/* Clear selection link */}
       {selectedPlantId && (
         <View style={styles.clearRow}>
           <TouchableOpacity onPress={handleClearSelection}>
@@ -265,7 +323,7 @@ export default function AddCropScreen({ route, navigation }) {
           <TextInput
             style={[styles.input, { flex: 1, marginRight: 10 }]}
             value={harvestDays}
-            onChangeText={setHarvestDays}
+            onChangeText={v => setHarvestDays(sanitizeInt(v))}
             placeholder="90"
             placeholderTextColor="#bbb"
             keyboardType="numeric"
@@ -312,7 +370,11 @@ export default function AddCropScreen({ route, navigation }) {
       </View>
 
       {/* Save button */}
-      <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+      <TouchableOpacity
+        style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+        onPress={handleSave}
+        disabled={saving || !canSave}
+      >
         {saving
           ? <ActivityIndicator color="#fff" />
           : <Text style={styles.saveBtnText}>{t('plantBtn')}</Text>
@@ -455,5 +517,6 @@ const styles = StyleSheet.create({
     elevation: 3, shadowColor: '#2d6a4f', shadowOpacity: 0.3,
     shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
   },
+  saveBtnDisabled: { backgroundColor: '#a0c4b2' },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

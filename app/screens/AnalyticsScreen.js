@@ -5,22 +5,35 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
-import { BarChart, PieChart } from 'react-native-chart-kit';
+import { BarChart, PieChart, StackedBarChart } from 'react-native-chart-kit';
 import { getPlots } from '../services/plotsService';
 import { getBeds } from '../services/bedsService';
 import { getAllCropsForPlot } from '../services/cropsService';
 import { getHarvestsForPlot } from '../services/harvestsService';
+import PlantIcon from '../components/PlantIcon';
+import { resolveVariety } from '../services/varietiesCatalog';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const CHART_INNER = SCREEN_W - 64;
+// -64 for card margins (16×2) and card padding (16×2)
+const CHART_INNER = SCREEN_W - 128 - 64; // additional right padding for labels
+// minimum px per bar so month labels never overlap
+const BAR_MIN_W   = 58;
 const PAGE_SIZE   = 5;
 
 const GREEN       = '#2d6a4f';
 const GREEN_DARK  = '#1a3c2d';
 const GREEN_LIGHT = '#e8f5e9';
+const BLUE        = '#1976d2';
+const CHART4_GREEN = '#9fd9c8';
+const CHART4_BLUE  = '#9fc8ff';
+const C4_CHART_HEIGHT = 220;
+const C4_PLOT_LEFT = 42;
+const C4_PLOT_RIGHT = 16;
+const C4_PLOT_TOP = 28;
+const C4_PLOT_BOTTOM = 34;
+const C4_LABEL_WIDTH = 110;
+const C4_LABEL_X_SHIFT = 26;
 
-const MONTHS_SHORT = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'];
-const DAY_ABBR     = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
 const QUALITY_COLORS = { excellent:'#2d6a4f', good:'#52b788', average:'#fb8c00', poor:'#ef5350' };
 
 const chartCfg = {
@@ -29,6 +42,10 @@ const chartCfg = {
   color:      (o = 1) => `rgba(45,106,79,${o})`,
   labelColor: (o = 1) => `rgba(80,100,90,${o})`,
   propsForBackgroundLines: { strokeOpacity: 0.12 },
+  propsForLabels: { fontSize: 10 },
+  yLabelsOffset: 4,
+  paddingLeft: 16,
+  paddingRight: 8,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -48,13 +65,13 @@ function getMonday(d) {
   return date;
 }
 
-function formatNavLabel(scale, year, month, weekStart) {
+function formatNavLabel(scale, year, month, weekStart, monthsShort) {
   if (scale === 'year')  return String(year);
-  if (scale === 'month') return `${MONTHS_SHORT[month]} ${year}`;
+  if (scale === 'month') return `${monthsShort[month]} ${year}`;
   if (scale === 'week' && weekStart) {
     const ws = new Date(weekStart);
     const we = new Date(ws); we.setDate(we.getDate() + 6);
-    const sm = MONTHS_SHORT[ws.getMonth()], em = MONTHS_SHORT[we.getMonth()];
+    const sm = monthsShort[ws.getMonth()], em = monthsShort[we.getMonth()];
     return sm === em
       ? `${ws.getDate()}–${we.getDate()} ${sm}`
       : `${ws.getDate()} ${sm}–${we.getDate()} ${em}`;
@@ -63,8 +80,7 @@ function formatNavLabel(scale, year, month, weekStart) {
 }
 
 // Returns { labels[], values[], barItems[][] } for the given scale/period.
-// items: array; getDateFn(item)→Date|null; getValueFn(item)→number
-function computeBars(items, getDateFn, getValueFn, scale, year, month, weekStart) {
+function computeBars(items, getDateFn, getValueFn, scale, year, month, weekStart, monthsShort, dayAbbr) {
   if (scale === 'year') {
     const values = Array(12).fill(0);
     const barItems = Array.from({ length: 12 }, () => []);
@@ -76,7 +92,7 @@ function computeBars(items, getDateFn, getValueFn, scale, year, month, weekStart
         barItems[m].push(item);
       }
     });
-    return { labels: MONTHS_SHORT, values, barItems };
+    return { labels: monthsShort, values, barItems };
   }
   if (scale === 'month') {
     const values = Array(4).fill(0);
@@ -104,9 +120,43 @@ function computeBars(items, getDateFn, getValueFn, scale, year, month, weekStart
         barItems[diff].push(item);
       }
     });
-    return { labels: DAY_ABBR, values, barItems };
+    return { labels: dayAbbr, values, barItems };
   }
   return { labels: [], values: [], barItems: [] };
+}
+
+// Stacked version for Chart 4: returns valuesKg[], valuesL[], barItems[][]
+function computeBarsStacked(items, getDateFn, scale, year, month, weekStart, monthsShort, dayAbbr) {
+  const len = scale === 'year' ? 12 : scale === 'month' ? 4 : 7;
+  const labelsMap = scale === 'year' ? monthsShort : scale === 'month' ? ['1–7','8–14','15–21','22+'] : dayAbbr;
+  const valuesKg  = Array(len).fill(0);
+  const valuesL   = Array(len).fill(0);
+  const barItems  = Array.from({ length: len }, () => []);
+
+  items.forEach(item => {
+    const d = getDateFn(item);
+    if (!d) return;
+    let idx = -1;
+    if (scale === 'year' && d.getFullYear() === year) {
+      idx = d.getMonth();
+    } else if (scale === 'month' && d.getFullYear() === year && d.getMonth() === month) {
+      idx = Math.min(3, Math.floor((d.getDate() - 1) / 7));
+    } else if (scale === 'week' && weekStart) {
+      const ws = new Date(weekStart); ws.setHours(0,0,0,0);
+      const diff = Math.round((d - ws) / 86400000);
+      if (diff >= 0 && diff < 7) idx = diff;
+    }
+    if (idx < 0) return;
+    const val = Math.round((item.yieldKg || 0) * 10) / 10;
+    if ((item.unit ?? 'kg') === 'L') {
+      valuesL[idx] = Math.round((valuesL[idx] + val) * 10) / 10;
+    } else {
+      valuesKg[idx] = Math.round((valuesKg[idx] + val) * 10) / 10;
+    }
+    barItems[idx].push(item);
+  });
+
+  return { labels: labelsMap.slice(0, len), valuesKg, valuesL, barItems };
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -149,7 +199,6 @@ function NavRow({ label, onPrev, onNext }) {
   );
 }
 
-// Clickable period labels below the chart — tap to expand detail
 function PeriodSelector({ labels, selected, onSelect, nonZero }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.periodRow}>
@@ -207,7 +256,9 @@ function PaginatedList({ items, page, setPage, renderItem, emptyText }) {
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function AnalyticsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const monthsShort = t('analytics.monthShort', { returnObjects: true });
+  const dayAbbr = t('analytics.dayShort', { returnObjects: true });
 
   const [plots,        setPlots]        = useState([]);
   const [selectedPlot, setSelectedPlot] = useState(null);
@@ -223,14 +274,14 @@ export default function AnalyticsScreen() {
   const [c2Year,   setC2Year]   = useState(new Date().getFullYear());
   const [c2Month,  setC2Month]  = useState(new Date().getMonth());
   const [c2Week,   setC2Week]   = useState(() => getMonday(new Date()));
-  const [c2Sel,    setC2Sel]    = useState(null); // selected bar index
+  const [c2Sel,    setC2Sel]    = useState(null);
   const [c2Page,   setC2Page]   = useState(0);
 
   // Chart 3 – Quality
   const [c3Quality, setC3Quality] = useState(null);
   const [c3Page,    setC3Page]    = useState(0);
 
-  // Chart 4 – Harvest chronology
+  // Chart 4 – Harvest chronology (stacked)
   const [c4Scale,  setC4Scale]  = useState('year');
   const [c4Year,   setC4Year]   = useState(new Date().getFullYear());
   const [c4Month,  setC4Month]  = useState(new Date().getMonth());
@@ -238,7 +289,6 @@ export default function AnalyticsScreen() {
   const [c4Sel,    setC4Sel]    = useState(null);
   const [c4Page,   setC4Page]   = useState(0);
 
-  // Ref for stale-closure-free focus reload
   const plotRef = useRef(selectedPlot);
   useEffect(() => { plotRef.current = selectedPlot; }, [selectedPlot]);
 
@@ -257,7 +307,6 @@ export default function AnalyticsScreen() {
     setLoadingData(false);
   }, []);
 
-  // Reload on every screen focus (fixes stale data after navigating away)
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -275,7 +324,6 @@ export default function AnalyticsScreen() {
     }, [loadPlotData])
   );
 
-  // Reload when a different plot chip is tapped
   useEffect(() => {
     if (!selectedPlot) {
       setBeds([]); setSelectedBed(null); setAllCrops([]); setRawHarvests([]);
@@ -284,7 +332,6 @@ export default function AnalyticsScreen() {
     loadPlotData(selectedPlot.id);
   }, [selectedPlot?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-init nav years from actual data
   useEffect(() => {
     const years = [...new Set(
       rawHarvests.map(h => parseDate(h.harvestedAt)?.getFullYear()).filter(Boolean)
@@ -299,7 +346,6 @@ export default function AnalyticsScreen() {
     if (years.length) setC2Year(years[years.length - 1]);
   }, [allCrops]);
 
-  // Reset selection when scale/nav changes
   useEffect(() => { setC2Sel(null); setC2Page(0); }, [c2Scale, c2Year, c2Month, c2Week]);
   useEffect(() => { setC4Sel(null); setC4Page(0); }, [c4Scale, c4Year, c4Month, c4Week]);
   useEffect(() => { setC3Page(0); }, [c3Quality]);
@@ -321,23 +367,46 @@ export default function AnalyticsScreen() {
     ? allCrops.filter(c => c.bedId === selectedBed.id)
     : allCrops;
 
-  // Chart 1 – yield by crop top-6
-  const yieldMap = {};
-  filteredHarvests.forEach(h => {
-    if (!h.cropName || h.cropName === '?') return;
-    yieldMap[h.cropName] = (yieldMap[h.cropName] || 0) + (h.yieldKg || 0);
-  });
-  const c1Entries = Object.entries(yieldMap).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const c1Labels  = c1Entries.map(([k]) => k.length > 5 ? k.slice(0, 4) + '…' : k);
-  const c1Values  = c1Entries.map(([, v]) => Math.round(v * 10) / 10);
+  // Chart 1 – yield productivity (kg/m²) per crop type, liters excluded
+  const bedAreaMap = {};
+  beds.forEach(b => { bedAreaMap[b.id] = (b.widthM || 0) * (b.heightM || 0); });
 
-  // Chart 2 – plantings (uses allCrops.plantedAt, NOT harvests)
+  const kgHarvests = filteredHarvests.filter(h => (h.unit ?? 'kg') !== 'L');
+  const productivityMap = {}; // cropLabel -> { totalKg, bedIds }
+  kgHarvests.forEach(h => {
+    const crop = cropMap[h.cropId];
+    const cropLabel = crop?.plantId
+      ? t(`plantName.${crop.plantId}`)
+      : (h.cropName || crop?.name || '?');
+    if (!cropLabel || cropLabel === '?') return;
+    if (!productivityMap[cropLabel]) productivityMap[cropLabel] = { totalKg: 0, bedIds: new Set() };
+    productivityMap[cropLabel].totalKg += (h.yieldKg || 0);
+    const bedId = crop?.bedId || h.bedId;
+    if (bedId) productivityMap[cropLabel].bedIds.add(bedId);
+  });
+  const c1Entries = Object.entries(productivityMap)
+    .map(([label, { totalKg, bedIds }]) => {
+      const area = [...bedIds].reduce((sum, bid) => sum + (bedAreaMap[bid] || 0), 0);
+      const value = area > 0 ? Math.round((totalKg / area) * 100) / 100 : Math.round(totalKg * 10) / 10;
+      return [label, value];
+    })
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const c1Labels = c1Entries.map(([k]) => k.length > 5 ? k.slice(0, 4) + '…' : k);
+  const c1Values = c1Entries.map(([, v]) => v);
+  const c1MaxValue = c1Values.length ? Math.max(...c1Values) : 0;
+  const c1Segments = Math.max(1, Math.min(6, Math.ceil((c1MaxValue || 0.05) / 0.05)));
+
+  // Chart 2 – plantings calendar
   const c2 = computeBars(
     filteredCrops,
     c => parseDate(c.plantedAt),
     () => 1,
-    c2Scale, c2Year, c2Month, c2Week,
+    c2Scale, c2Year, c2Month, c2Week, monthsShort, dayAbbr,
   );
+  const c2MaxValue = c2.values.length ? Math.max(...c2.values) : 0;
+  const c2Segments = Math.max(1, Math.min(6, Math.ceil(c2MaxValue / 0.5)));
 
   // Chart 3 – quality
   const qualityCount = { excellent: 0, good: 0, average: 0, poor: 0 };
@@ -347,16 +416,27 @@ export default function AnalyticsScreen() {
     .map(([k, v]) => ({ name: t(k), population: v, color: QUALITY_COLORS[k], legendFontColor: '#555', legendFontSize: 13, _key: k }));
   const c3FilteredHarvests = c3Quality ? filteredHarvests.filter(h => h.quality === c3Quality) : [];
 
-  // Chart 4 – harvest chronology
-  const c4 = computeBars(
+  // Chart 4 – harvest chronology (stacked: kg + liters)
+  const c4 = computeBarsStacked(
     filteredHarvests,
     h => parseDate(h.harvestedAt),
-    h => h.yieldKg || 0,
-    c4Scale, c4Year, c4Month, c4Week,
+    c4Scale, c4Year, c4Month, c4Week, monthsShort, dayAbbr,
   );
+  const c4HasData = c4.valuesKg.some(v => v > 0) || c4.valuesL.some(v => v > 0);
+  const c4StackedData = c4.labels.map((_, i) => [
+    c4.valuesKg[i] || 0,
+    c4.valuesL[i] || 0,
+  ]);
+  const c4Totals = c4.labels.map((_, i) => Math.round(((c4.valuesKg[i] || 0) + (c4.valuesL[i] || 0)) * 10) / 10);
+  const c4MaxValue = Math.max(...c4Totals, 0);
+  const c4ChartWidth = Math.max(CHART_INNER, c4.labels.length * BAR_MIN_W);
+  const c4PlotWidth = Math.max(1, c4ChartWidth - C4_PLOT_LEFT - C4_PLOT_RIGHT);
+  const c4PlotHeight = Math.max(1, C4_CHART_HEIGHT - C4_PLOT_TOP - C4_PLOT_BOTTOM);
 
+  // Summary
   const totalEntries = filteredHarvests.length;
-  const totalKg      = filteredHarvests.reduce((s, h) => s + (h.yieldKg || 0), 0);
+  const totalKg      = kgHarvests.reduce((s, h) => s + (h.yieldKg || 0), 0);
+  const totalL       = filteredHarvests.filter(h => h.unit === 'L').reduce((s, h) => s + (h.yieldKg || 0), 0);
   const topCrop      = c1Entries[0]?.[0] ?? '—';
 
   // ── Scale navigation ──────────────────────────────────────────────────────
@@ -379,26 +459,57 @@ export default function AnalyticsScreen() {
   const c4Nav = makeNav(c4Scale, c4Year, setC4Year, c4Month, setC4Month, c4Week, setC4Week);
 
   // ── Row renderers ─────────────────────────────────────────────────────────
-  const renderCropRow = (crop) => (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailIcon}>{crop.icon || '🌿'}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.detailName} numberOfLines={1}>{crop.name}</Text>
-        {!!crop.variety && <Text style={styles.detailSub} numberOfLines={1}>{crop.variety}</Text>}
-      </View>
-      <Text style={styles.detailDate}>
-        {parseDate(crop.plantedAt)?.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' }) ?? ''}
-      </Text>
-    </View>
-  );
+  const getLocalizedCropName = (cropEntity, fallbackName) => {
+    if (cropEntity?.plantId) return t(`plantName.${cropEntity.plantId}`);
+    return cropEntity?.name || fallbackName || '?';
+  };
 
-  const renderHarvestRow = (h) => (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailIcon}>{cropMap[h.cropId]?.icon || '🌿'}</Text>
-      <Text style={styles.detailName} numberOfLines={1}>{h.cropName}</Text>
-      <Text style={styles.detailDate}>{h.yieldKg} {h.unit === 'L' ? t('unitLiters') : t('unitKg')}</Text>
-    </View>
-  );
+  const renderCropRow = (crop) => {
+    const localizedName = getLocalizedCropName(crop, crop.name);
+    const varietyLabel = resolveVariety(crop, t);
+    return (
+      <View style={styles.detailRow}>
+        <PlantIcon
+          plantId={crop.plantId}
+          name={localizedName}
+          icon={crop.icon}
+          size={20}
+          textStyle={styles.detailIcon}
+          fallback="🌿"
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.detailName} numberOfLines={1}>{localizedName}</Text>
+          {!!varietyLabel && <Text style={styles.detailSub} numberOfLines={1}>{varietyLabel}</Text>}
+        </View>
+        <Text style={styles.detailDate}>
+          {parseDate(crop.plantedAt)?.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' }) ?? ''}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderHarvestRow = (h) => {
+    const cropEntity = cropMap[h.cropId];
+    const localizedName = getLocalizedCropName(cropEntity, h.cropName);
+    const varietyLabel = cropEntity ? resolveVariety(cropEntity, t) : '';
+    return (
+      <View style={styles.detailRow}>
+        <PlantIcon
+          plantId={cropEntity?.plantId}
+          name={localizedName}
+          icon={cropEntity?.icon}
+          size={20}
+          textStyle={styles.detailIcon}
+          fallback="🌿"
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.detailName} numberOfLines={1}>{localizedName}</Text>
+          {!!varietyLabel && <Text style={styles.detailSub} numberOfLines={1}>{varietyLabel}</Text>}
+        </View>
+        <Text style={styles.detailDate}>{h.yieldKg} {h.unit === 'L' ? t('unitLiters') : t('unitKg')}</Text>
+      </View>
+    );
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -471,24 +582,40 @@ export default function AnalyticsScreen() {
               <Text style={styles.summaryValue}>{totalKg % 1 === 0 ? totalKg : totalKg.toFixed(1)}</Text>
               <Text style={styles.summaryLabel}>{t('analytics.totalKg')} {t('unitKg')}</Text>
             </View>
+            {totalL > 0 && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryValue}>{totalL % 1 === 0 ? totalL : totalL.toFixed(1)}</Text>
+                <Text style={styles.summaryLabel}>{t('analytics.totalL')}</Text>
+              </View>
+            )}
             <View style={[styles.summaryCard, { flex: 1.5 }]}>
               <Text style={styles.summaryValue} numberOfLines={1}>{topCrop}</Text>
               <Text style={styles.summaryLabel}>{t('analytics.topCrop')}</Text>
             </View>
           </View>
 
-          {/* ── Chart 1: Yield by crop ── */}
+          {/* ── Chart 1: Yield productivity (kg/m²) ── */}
           <View style={styles.chartCard}>
             <View style={styles.chartTitleRow}>
-              <Text style={styles.chartTitle}>📦 {t('yieldByCrop')}</Text>
-              <View style={styles.unitBadge}><Text style={styles.unitText}>{t('unitKg')}</Text></View>
+              <Text style={styles.chartTitle}>📦 {t('yieldProductivity')}</Text>
+              <View style={styles.unitBadge}><Text style={styles.unitText}>{t('unitKgPerM2')}</Text></View>
             </View>
             {c1Values.length > 0 && c1Values.some(v => v > 0) ? (
-              <BarChart
-                data={{ labels: c1Labels, datasets: [{ data: c1Values }] }}
-                width={CHART_INNER} height={200} chartConfig={chartCfg}
-                fromZero showValuesOnTopOfBars style={styles.chart}
-              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <BarChart
+                  data={{ labels: c1Labels, datasets: [{ data: c1Values }] }}
+                  width={CHART_INNER} height={200}
+                  chartConfig={{ ...chartCfg, decimalPlaces: 2 }}
+                  fromZero showValuesOnTopOfBars style={styles.chart}
+                  segments={c1Segments}
+                  formatYLabel={(value) => {
+                    const numericValue = Number(value);
+                    return Number.isInteger(numericValue)
+                      ? String(numericValue)
+                      : numericValue.toFixed(2);
+                  }}
+                />
+              </ScrollView>
             ) : (
               <EmptyChart label={t('analytics.noData')} />
             )}
@@ -502,16 +629,23 @@ export default function AnalyticsScreen() {
             </View>
             <ScaleSelector scale={c2Scale} onSelect={s => setC2Scale(s)} t={t} />
             <NavRow
-              label={formatNavLabel(c2Scale, c2Year, c2Month, c2Week)}
+              label={formatNavLabel(c2Scale, c2Year, c2Month, c2Week, monthsShort)}
               onPrev={c2Nav.prev}
               onNext={c2Nav.next}
             />
             {c2.values.some(v => v > 0) ? (
-              <BarChart
-                data={{ labels: c2.labels, datasets: [{ data: c2.values.map(v => v || 0.001) }] }}
-                width={CHART_INNER} height={180} chartConfig={chartCfg}
-                fromZero style={styles.chart}
-              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <BarChart
+                  data={{ labels: c2.labels, datasets: [{ data: c2.values }] }}
+                  width={Math.max(CHART_INNER, c2.labels.length * BAR_MIN_W)}
+                  height={180}
+                  chartConfig={{ ...chartCfg, decimalPlaces: 1 }}
+                  fromZero style={styles.chart}
+                  showValuesOnTopOfBars
+                  segments={c2Segments}
+                  formatYLabel={(value) => Number(value).toFixed(1)}
+                />
+              </ScrollView>
             ) : (
               <EmptyChart label={t('analytics.noData')} />
             )}
@@ -542,12 +676,14 @@ export default function AnalyticsScreen() {
             <Text style={styles.chartTitle}>🌟 {t('analytics.qualityTitle')}</Text>
             {pieData.length > 0 ? (
               <>
-                <PieChart
-                  data={pieData}
-                  width={CHART_INNER} height={160} chartConfig={chartCfg}
-                  accessor="population" backgroundColor="transparent"
-                  paddingLeft="15" style={styles.chart} hasLegend={false}
-                />
+                <View>
+                  <PieChart
+                    data={pieData}
+                    width={580} height={160} chartConfig={chartCfg}
+                    accessor="population" backgroundColor="transparent"
+                    paddingLeft="24"  hasLegend={false}
+                  />
+                </View>
                 <View style={styles.pieChipsRow}>
                   {pieData.map(item => (
                     <TouchableOpacity
@@ -582,24 +718,70 @@ export default function AnalyticsScreen() {
             )}
           </View>
 
-          {/* ── Chart 4: Harvest chronology ── */}
+          {/* ── Chart 4: Harvest chronology (stacked kg/L) ── */}
           <View style={styles.chartCard}>
             <View style={styles.chartTitleRow}>
               <Text style={styles.chartTitle}>🗓 {t('analytics.chronoTitle')}</Text>
-              <View style={styles.unitBadge}><Text style={styles.unitText}>{t('unitKg')}</Text></View>
+              <View style={styles.stackedLegend}>
+                <View style={[styles.legendDot, { backgroundColor: GREEN }]} />
+                <Text style={styles.legendText}>{t('unitKg')}</Text>
+                <View style={[styles.legendDot, { backgroundColor: BLUE }]} />
+                <Text style={styles.legendText}>{t('unitLiters')}</Text>
+              </View>
             </View>
             <ScaleSelector scale={c4Scale} onSelect={s => setC4Scale(s)} t={t} />
             <NavRow
-              label={formatNavLabel(c4Scale, c4Year, c4Month, c4Week)}
+              label={formatNavLabel(c4Scale, c4Year, c4Month, c4Week, monthsShort)}
               onPrev={c4Nav.prev}
               onNext={c4Nav.next}
             />
-            {c4.values.some(v => v > 0) ? (
-              <BarChart
-                data={{ labels: c4.labels, datasets: [{ data: c4.values.map(v => v || 0.001) }] }}
-                width={CHART_INNER} height={180} chartConfig={chartCfg}
-                fromZero style={styles.chart}
-              />
+            {c4HasData ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={[styles.stackedChartWrap, { width: c4ChartWidth }]}> 
+                  <StackedBarChart
+                    data={{
+                      labels: c4.labels,
+                      legend: [t('unitKg'), t('unitLiters')],
+                      data: c4StackedData,
+                      barColors: [CHART4_GREEN, CHART4_BLUE],
+                    }}
+                    width={c4ChartWidth}
+                    height={C4_CHART_HEIGHT}
+                    chartConfig={{
+                      ...chartCfg,
+                      decimalPlaces: 1,
+                      color: (o = 1) => `rgba(140,200,180,${o})`,
+                    }}
+                    hideLegend
+                    style={styles.chart}
+                  />
+                  <View pointerEvents="none" style={styles.stackedValueOverlay}>
+                    {c4Totals.map((total, idx) => {
+                      if (total <= 0) return null;
+                      const slotWidth = c4PlotWidth / c4.labels.length;
+                      const barCenterX = C4_PLOT_LEFT + idx * slotWidth + slotWidth / 2;
+                      const ratio = total / Math.max(c4MaxValue, 1);
+                      const top = Math.max(2, C4_PLOT_TOP + (1 - ratio) * c4PlotHeight - 16);
+                      const kgValue = c4.valuesKg[idx] || 0;
+                      const literValue = c4.valuesL[idx] || 0;
+                      const formatValue = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
+                      let valueText = '';
+                      if (kgValue > 0 && literValue > 0) {
+                        valueText = `${formatValue(kgValue)} ${t('unitKg')} + ${formatValue(literValue)} ${t('unitLiters')}`;
+                      } else if (kgValue > 0) {
+                        valueText = `${formatValue(kgValue)} ${t('unitKg')}`;
+                      } else {
+                        valueText = `${formatValue(literValue)} ${t('unitLiters')}`;
+                      }
+                      return (
+                        <Text key={`c4-value-${idx}`} style={[styles.stackedValueLabel, { left: barCenterX - (C4_LABEL_WIDTH / 2) + C4_LABEL_X_SHIFT, top }]}> 
+                          {valueText}
+                        </Text>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
             ) : (
               <EmptyChart label={t('analytics.noData')} />
             )}
@@ -607,12 +789,14 @@ export default function AnalyticsScreen() {
               labels={c4.labels}
               selected={c4Sel}
               onSelect={idx => { setC4Sel(idx); setC4Page(0); }}
-              nonZero={c4.values.map(v => v > 0)}
+              nonZero={c4.labels.map((_, i) => c4.valuesKg[i] > 0 || c4.valuesL[i] > 0)}
             />
-            {c4Sel !== null && c4Sel < c4.values.length && (
+            {c4Sel !== null && c4Sel < c4.barItems.length && (
               <View style={styles.detailCard}>
                 <Text style={styles.detailTitle}>
-                  {c4.labels[c4Sel]}  {(c4.values[c4Sel] ?? 0).toFixed(1)} {t('unitKg')}
+                  {c4.labels[c4Sel]}
+                  {'  '}{c4.valuesKg[c4Sel].toFixed(1)} {t('unitKg')}
+                  {c4.valuesL[c4Sel] > 0 ? ` · ${c4.valuesL[c4Sel].toFixed(1)} ${t('unitLiters')}` : ''}
                 </Text>
                 <PaginatedList
                   items={c4.barItems[c4Sel]}
@@ -634,10 +818,6 @@ const styles = StyleSheet.create({
   root:     { flex: 1, backgroundColor: '#f0f7f4' },
   centered: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32 },
 
-  screenTitle: {
-    fontSize: 22, fontWeight: '800', color: GREEN_DARK,
-    marginHorizontal: 16, marginTop: 16, marginBottom: 10,
-  },
   filterLabel: {
     fontSize: 12, fontWeight: '600', color: '#888',
     marginHorizontal: 16, marginTop: 10, marginBottom: 6, textTransform: 'uppercase',
@@ -653,9 +833,9 @@ const styles = StyleSheet.create({
   emptyStateIcon: { fontSize: 36, marginBottom: 12 },
   emptyStateText: { fontSize: 15, color: '#aaa', textAlign: 'center', paddingHorizontal: 24 },
 
-  summaryRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12, marginBottom: 8 },
+  summaryRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12, marginBottom: 8, flexWrap: 'wrap' },
   summaryCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 14,
+    flex: 1, minWidth: 60, backgroundColor: '#fff', borderRadius: 14,
     paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center',
     elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
@@ -673,11 +853,14 @@ const styles = StyleSheet.create({
   unitText:   { fontSize: 11, fontWeight: '700', color: GREEN },
   chart:      { borderRadius: 10, marginTop: 8 },
 
+  stackedLegend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot:     { width: 10, height: 10, borderRadius: 5 },
+  legendText:    { fontSize: 11, fontWeight: '700', color: '#555' },
+
   emptyChart:     { height: 110, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#f9f9f9', borderRadius: 10, marginTop: 8 },
   emptyChartText: { fontSize: 13, color: '#ccc', fontStyle: 'italic' },
 
-  // Scale selector
   scaleRow:          { flexDirection: 'row', gap: 6, marginBottom: 4 },
   scaleBtn:          { flex: 1, paddingVertical: 6, borderRadius: 10, backgroundColor: '#f4f4f4',
     alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
@@ -685,7 +868,6 @@ const styles = StyleSheet.create({
   scaleBtnText:      { fontSize: 12, color: '#999', fontWeight: '600' },
   scaleBtnTextActive:{ color: GREEN },
 
-  // Nav row
   navRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 20, marginVertical: 8 },
   navBtn:    { width: 32, height: 32, borderRadius: 16, backgroundColor: GREEN_LIGHT,
@@ -694,7 +876,6 @@ const styles = StyleSheet.create({
   navLabel:  { fontSize: 14, fontWeight: '700', color: GREEN_DARK,
     minWidth: 110, textAlign: 'center' },
 
-  // Period selector
   periodRow:          { paddingVertical: 6, gap: 6, paddingHorizontal: 2 },
   periodBtn:          { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
     backgroundColor: '#f4f4f4', borderWidth: 1, borderColor: 'transparent' },
@@ -704,7 +885,6 @@ const styles = StyleSheet.create({
   periodBtnTextActive:{ color: GREEN },
   periodBtnTextEmpty: { color: '#bbb' },
 
-  // Detail card
   detailCard:  { marginTop: 8, backgroundColor: '#f6faf7', borderRadius: 12,
     padding: 12, borderWidth: 1, borderColor: '#c8e6c9' },
   detailTitle: { fontSize: 13, fontWeight: '700', color: GREEN_DARK, marginBottom: 8 },
@@ -717,15 +897,27 @@ const styles = StyleSheet.create({
   detailEmpty: { fontSize: 13, color: '#aaa', fontStyle: 'italic',
     textAlign: 'center', padding: 8 },
 
-  // Pie
-  pieChipsRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  pieChartWrap: { alignItems: 'center', width: '100%' },
+  pieChart:     { alignSelf: 'center' },
+  pieChipsRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, justifyContent: 'flex-start' },
+  stackedChartWrap: { position: 'relative' },
+  stackedValueOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  stackedValueLabel: {
+    position: 'absolute',
+    width: C4_LABEL_WIDTH,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '700',
+    color: GREEN_DARK,
+  },
   pieChip:      { flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5 },
   pieChipActive:{ borderWidth: 2.5 },
   pieDot:       { width: 10, height: 10, borderRadius: 5 },
   pieChipText:  { fontSize: 13, fontWeight: '600' },
 
-  // Pagination
   pagination:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 16, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#e8f5e9' },
   pageBtn:         { width: 28, height: 28, borderRadius: 14, backgroundColor: GREEN_LIGHT,

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { addPlot } from '../services/plotsService';
+import { sanitizeDecimal } from '../utils/inputSanitizers';
 
 export default function ManualPlotScreen({ navigation }) {
   const { t } = useTranslation();
@@ -59,7 +60,7 @@ export default function ManualPlotScreen({ navigation }) {
           style={styles.input}
           placeholder="10"
           value={width}
-          onChangeText={setWidth}
+          onChangeText={v => setWidth(sanitizeDecimal(v))}
           keyboardType="decimal-pad"
         />
 
@@ -68,7 +69,7 @@ export default function ManualPlotScreen({ navigation }) {
           style={styles.input}
           placeholder="20"
           value={length}
-          onChangeText={setLength}
+          onChangeText={v => setLength(sanitizeDecimal(v))}
           keyboardType="decimal-pad"
         />
 

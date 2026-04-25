@@ -7,6 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { getPlants, getAllPlants, deletePlant } from '../services/plantsService';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import PlantIcon from '../components/PlantIcon';
+import { findCatalogPlant } from '../services/plantsCatalog';
+import { resolveVariety } from '../services/varietiesCatalog';
 
 const TABS = ['my', 'community'];
 
@@ -62,18 +65,27 @@ export default function PlantsListScreen({ navigation }) {
 
   const renderItem = ({ item }) => {
     const isMine = item.userId === user?.uid;
+    const catalogEntry = item.plantId ? findCatalogPlant(item.plantId) : null;
+    const icon = catalogEntry?.icon ?? item.icon;
     return (
       <View style={styles.card}>
         {item.photoUri ? (
           <Image source={{ uri: item.photoUri }} style={styles.photo} />
         ) : (
           <View style={styles.photoPlaceholder}>
-            <Text style={styles.emoji}>{item.icon || '🌱'}</Text>
+            <PlantIcon
+              plantId={item.plantId}
+              id={item.id}
+              name={item.name}
+              icon={icon}
+              size={24}
+              textStyle={styles.emoji}
+            />
           </View>
         )}
         <View style={styles.info}>
-          <Text style={styles.name}>{item.name}</Text>
-          {item.variety ? <Text style={styles.variety}>{item.variety}</Text> : null}
+          <Text style={styles.name}>{item.plantId ? t(`plantName.${item.plantId}`) : item.name}</Text>
+          {resolveVariety(item, t) ? <Text style={styles.variety}>{resolveVariety(item, t)}</Text> : null}
           <Text style={styles.days}>⏱ {item.harvestDays} {t('days')}</Text>
         </View>
         {isMine && (
