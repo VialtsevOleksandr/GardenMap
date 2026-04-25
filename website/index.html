@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GardenMap — Розумний помічник для городу</title>
+  <meta name="description" content="Мобільний застосунок для ведення городу: супутникова карта, облік культур, погода, аналітика врожаїв та поради щодо сівозміни." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ===== NAVIGATION ===== -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-icon">🌱</div>
+    GardenMap
+  </div>
+  <ul class="nav-links">
+    <li><a href="#features">Функції</a></li>
+    <li><a href="#guide">Посібник</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="#" class="nav-cta">Завантажити</a></li>
+  </ul>
+</nav>
+
+
+<!-- ===== HERO ===== -->
+<section id="hero">
+  <div class="hero-content">
+    <div class="hero-badge">🌿 Доступно безкоштовно у Google Play</div>
+    <h1>GardenMap</h1>
+    <p class="hero-tagline">Ваш розумний помічник для городу</p>
+    <p class="hero-desc">
+      Обирайте ділянку на супутниковій карті, плануйте грядки, стежте за культурами
+      та отримуйте аналітику врожаїв — все в одному застосунку для Android.
+    </p>
+    <div class="hero-buttons">
+      <a href="#" class="btn-primary">▶&nbsp; Завантажити для Android</a>
+      <a href="#guide" class="btn-secondary">📖&nbsp; Посібник</a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <img src="images/2x_shots_so.png" alt="GardenMap — супутникова карта з намальованою ділянкою" class="hero-img" />
+  </div>
+</section>
+
+
+<!-- ===== STATS ===== -->
+<div class="stats-strip">
+  <div class="stat-item"><span class="stat-num">9</span><span class="stat-label">екранів</span></div>
+  <div class="stat-item"><span class="stat-num">4</span><span class="stat-label">типи графіків</span></div>
+  <div class="stat-item"><span class="stat-num">uk/en</span><span class="stat-label">двомовний</span></div>
+  <div class="stat-item"><span class="stat-num">∞</span><span class="stat-label">ділянок і грядок</span></div>
+  <div class="stat-item"><span class="stat-num">0₴</span><span class="stat-label">безкоштовно</span></div>
+</div>
+
+
+<!-- ===== FEATURES ===== -->
+<section id="features">
+  <div class="features-header">
+    <div class="section-label">Можливості</div>
+    <h2 class="section-title">Все що потрібно для вашого городу</h2>
+    <p class="section-sub">Від розмітки ділянки до аналізу врожаїв — GardenMap веде ваш город від першої посадки до останнього збору.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🗺️</div>
+      <h3>Супутникова карта</h3>
+      <p>Позначте кути своєї ділянки прямо на супутниковому знімку. Площа розраховується автоматично за формулою Гаусса.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⊞</div>
+      <h3>Схема грядок</h3>
+      <p>Розбийте ділянку на іменовані грядки у вигляді інтерактивної сітки. Малюйте грядки пальцем прямо на плані.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⏱️</div>
+      <h3>Таймер до збору</h3>
+      <p>Відстежуйте кожну культуру: дата посадки, сорт, фото та автоматичний зворотний відлік до дня збору врожаю.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌤️</div>
+      <h3>Погода та засуха</h3>
+      <p>Поточна погода для координат вашої ділянки. Лічильник сухих днів сигналізує коли городу потрібен полив.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Аналітика врожаїв</h3>
+      <p>Чотири типи графіків: врожайність по культурах, календар посадок, якість врожаю та хронологія збору.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔄</div>
+      <h3>Поради сівозміни</h3>
+      <p>Алгоритм аналізує два попередніх сезони і підказує що можна, а що не варто садити на кожній грядці.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ===== GUIDE ===== -->
+<section id="guide">
+  <div class="guide-header">
+    <div class="section-label">Посібник</div>
+    <h2 class="section-title">Як користуватися GardenMap</h2>
+    <p class="section-sub">Покроковий ілюстрований посібник від першого запуску до збору врожаю.</p>
+  </div>
+
+  <div class="guide-steps">
+
+    <!-- STEP 1 -->
+    <div class="guide-step">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">1</div>
+          <span class="step-tag">Старт</span>
+        </div>
+        <h3 class="step-title">Головний екран — список ділянок</h3>
+        <div class="step-text">
+          <p>Після запуску ви потрапляєте на головний екран зі списком усіх ваших ділянок. Для кожної відображається назва та площа.</p>
+          <ul>
+            <li><strong>Пошук</strong> — введіть назву у поле вгорі, список фільтрується відразу</li>
+            <li><strong>Нова ділянка</strong> — кнопка <strong>«+»</strong> у правому нижньому куті</li>
+            <li><strong>Відкрити ділянку</strong> — натисніть на картку</li>
+            <li><strong>Видалити</strong> — довге натискання на картку</li>
+          </ul>
+          <p class="step-note">Навігація має 5 вкладок: Ділянки · Рослини · Аналітика · Архів · Налаштування</p>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/1x_shots_so.png" alt="Головний екран зі списком ділянок та пошуком" />
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="guide-step reverse">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">2</div>
+          <span class="step-tag">Ділянка на карті</span>
+        </div>
+        <h3 class="step-title">Малювання ділянки на супутниковій карті</h3>
+        <div class="step-text">
+          <p>Натисніть «+» → «На карті». Відкриється супутниковий знімок з перемикачем режимів: Гібрид / Супутник / Карта.</p>
+          <div class="steps-numbered">
+            <div class="step-item">
+              <div class="step-item-num">1</div>
+              <div class="step-item-text">Введіть назву міста у поле пошуку або перетягуйте карту вручну</div>
+            </div>
+            <div class="step-item">
+              <div class="step-item-num">2</div>
+              <div class="step-item-text">Натискайте на кожен кут ділянки по черзі — з'являються пронумеровані точки (макс. 20)</div>
+            </div>
+            <div class="step-item">
+              <div class="step-item-num">3</div>
+              <div class="step-item-text">Натисніть «Зберегти ділянку» — полігон замикається, площа розраховується автоматично</div>
+            </div>
+            <div class="step-item">
+              <div class="step-item-num">4</div>
+              <div class="step-item-text">Введіть назву ділянки та збережіть</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/2x_shots_so.png" alt="Супутникова карта з намальованим полігоном ділянки" />
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="guide-step">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">3</div>
+          <span class="step-tag">Грядки</span>
+        </div>
+        <h3 class="step-title">Налаштування сітки та створення грядок</h3>
+        <div class="step-text">
+          <p>Після збереження відкривається екран ділянки. Вгорі — статистика: площа, кількість грядок, рослин.</p>
+          <ul>
+            <li>Натисніть <strong>«Налаштувати сітку»</strong> та оберіть розмір клітинки: 0.5 / 1 / 2 / 5 м</li>
+            <li>Перейдіть в режим <strong>«В Планування»</strong> — з'явиться інтерактивна сітка</li>
+            <li>Натисніть <strong>«+»</strong> та малюйте грядку пальцем по клітинках</li>
+            <li>Дайте грядці назву і натисніть «Створити грядку»</li>
+          </ul>
+          <div class="status-badges" style="margin-top:12px">
+            <div class="badge-item badge-green">■ Порожня зона</div>
+            <div class="badge-item badge-yellow">■ Скоро збирати (&lt;7 днів)</div>
+            <div class="badge-item badge-red">■ Час збирати!</div>
+          </div>
+        </div>
+      </div>
+      <div class="step-visual step-visual-duo">
+        <img src="images/3x_shots_so.png" alt="Налаштування сітки ділянки" />
+        <img src="images/4x_shots_so.png" alt="Створення грядки в режимі планування" class="visual-secondary" />
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="guide-step reverse">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">4</div>
+          <span class="step-tag">Культури</span>
+        </div>
+        <h3 class="step-title">Додавання культури та таймер збору</h3>
+        <div class="step-text">
+          <p>Натисніть на грядку → перейдіть до екрану грядки → «+» щоб додати рослину.</p>
+          <ul>
+            <li><strong>Каталог рослин</strong> — знайдіть культуру через пошук (вкладки «Спільнота» / «Мої»)</li>
+            <li><strong>Днів до збору</strong> — вкажіть вручну або оберіть: 30 / 60 / 90 / 120</li>
+            <li><strong>Фото</strong> — зробіть знімок або завантажте з галереї</li>
+          </ul>
+          <p style="margin-top:10px">На екрані ділянки в режимі «Список» видно всі активні культури з прогрес-баром до збору:</p>
+          <div class="status-badges" style="margin-top:8px">
+            <div class="badge-item badge-green">⏳ «Залишилось 77 днів»</div>
+            <div class="badge-item badge-yellow">⚡ «Залишилось 5 днів»</div>
+            <div class="badge-item badge-red">🍅 «Пора збирати!»</div>
+          </div>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/7x_shots_so.png" alt="Каталог рослин та список культур з таймерами" />
+      </div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div class="guide-step">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">5</div>
+          <span class="step-tag">Погода</span>
+        </div>
+        <h3 class="step-title">Погода та лічильник засухи</h3>
+        <div class="step-text">
+          <p>На екрані ділянки — смужка з поточною погодою. Натисніть на неї щоб відкрити детальну панель.</p>
+          <ul>
+            <li>Температура, вологість, швидкість вітру, відчувається як</li>
+            <li>Лічильник <strong>«Днів без дощу»</strong> — зростає щодня без опадів</li>
+            <li>При <strong>3+ сухих днях</strong> — з'являється попередження «🔥 Можливо, варто полити город»</li>
+            <li>Кнопка «Оновити» для ручного оновлення погоди</li>
+          </ul>
+          <p class="step-note">Щоб встановити місце: натисніть 🌦 у заголовку екрану ділянки та введіть адресу.</p>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/8x_shots_so.png" alt="Блок погоди з детальною панеллю та лічильником сухих днів" />
+      </div>
+    </div>
+
+    <!-- STEP 6 -->
+    <div class="guide-step reverse">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">6</div>
+          <span class="step-tag">Врожай</span>
+        </div>
+        <h3 class="step-title">Запис збору врожаю</h3>
+        <div class="step-text">
+          <p>Коли підходить час збору — натисніть «Пора збирати» на картці культури. Відкриється форма запису.</p>
+          <ul>
+            <li><strong>Одиниця виміру</strong> — кг або літри (перемикач)</li>
+            <li><strong>Кількість</strong> — вводьте або використовуйте кнопки швидкого вибору</li>
+            <li><strong>Якість</strong> — Погано / Добре / Відмінно / Хороша (з кольоровими кнопками)</li>
+            <li><strong>Нотатки</strong> — що вийшло, що покращити наступного разу</li>
+          </ul>
+          <p style="margin-top:10px">При «остаточному зборі» — культура закривається і переходить до архіву, грядка звільняється.</p>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/9x_shots_so.png" alt="Форма запису збору врожаю" />
+      </div>
+    </div>
+
+    <!-- STEP 7 -->
+    <div class="guide-step">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">7</div>
+          <span class="step-tag">Аналітика</span>
+        </div>
+        <h3 class="step-title">Аналітика — 4 типи графіків</h3>
+        <div class="step-text">
+          <p>Вкладка «Аналітика» у нижньому меню. Фільтрування по ділянці та грядці.</p>
+          <ul>
+            <li><strong>Врожайність по культурах</strong> — кг/м² у вигляді стовпців, топ-6 культур</li>
+            <li><strong>Календар посадок</strong> — кількість посадок по місяцях; шкала Рік / Місяць / Тиждень</li>
+            <li><strong>Якість врожаю</strong> — кругова діаграма розподілу оцінок</li>
+            <li><strong>Хронологія збору</strong> — стовпці з накопиченням: кг + літри по часу</li>
+          </ul>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/10x_shots_so.png" alt="Три екрани аналітики з різними типами графіків" />
+      </div>
+    </div>
+
+    <!-- STEP 8 -->
+    <div class="guide-step reverse">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">8</div>
+          <span class="step-tag">Архів</span>
+        </div>
+        <h3 class="step-title">Архів посадок з фільтрами</h3>
+        <div class="step-text">
+          <p>Вкладка «Архів» у нижньому меню — всі зафіксовані врожаї з можливістю фільтрування.</p>
+          <ul>
+            <li><strong>Рік</strong> — теги-фільтри для вибору сезону</li>
+            <li><strong>Культура</strong> — теги для порівняння між роками (Томат, Квасоля...)</li>
+            <li><strong>«Скинути фільтри»</strong> — з'являється коли активний хоча б один фільтр</li>
+            <li>Кожен запис можна <strong>редагувати ✏️</strong> або <strong>видалити ✕</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/11x_shots_so.png" alt="Архів врожаїв з активними тег-фільтрами" />
+      </div>
+    </div>
+
+    <!-- STEP 9 -->
+    <div class="guide-step">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">9</div>
+          <span class="step-tag">Сівозміна</span>
+        </div>
+        <h3 class="step-title">Поради щодо сівозміни</h3>
+        <div class="step-text">
+          <p>На екрані грядки — блок «Попередні культури» та «Що посадити наступного сезону». Алгоритм аналізує 2 останніх сезони.</p>
+          <div class="status-badges" style="margin-top:12px">
+            <div class="badge-item badge-green">✅ Рекомендовані культури (зелені теги)</div>
+            <div class="badge-item badge-red">⚠️ Уникати — та сама родина (червоні теги)</div>
+          </div>
+          <p style="margin-top:12px; font-size:0.88rem;">На прикладі після <strong>Томату</strong>: рекомендовані — Огірок, Морква, Цибуля, Капуста...; уникати — Томат, Картопля, Перець, Баклажан.</p>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/12x_shots_so.png" alt="Поради сівозміни з рекомендованими і забороненими культурами" />
+      </div>
+    </div>
+
+    <!-- STEP 10 -->
+    <div class="guide-step reverse">
+      <div class="step-content">
+        <div class="step-meta">
+          <div class="step-number">10</div>
+          <span class="step-tag">Налаштування</span>
+        </div>
+        <h3 class="step-title">Профіль та мова інтерфейсу</h3>
+        <div class="step-text">
+          <p>Вкладка «Налаштування» — ⚙️ у нижньому меню.</p>
+          <ul>
+            <li><strong>Мова</strong> — перемикач «Українська / English», інтерфейс перекладається миттєво</li>
+            <li>Мова визначається <strong>автоматично</strong> з налаштувань телефону при першому запуску</li>
+            <li><strong>Ім'я профілю</strong> — можна змінити у будь-який момент</li>
+            <li><strong>Пароль</strong> — зміна через підтвердження поточного</li>
+            <li><strong>«Вийти»</strong> — вихід з акаунту</li>
+          </ul>
+        </div>
+      </div>
+      <div class="step-visual">
+        <img src="images/13x_shots_so.png" alt="Екран налаштувань з перемикачем мови та профілем" />
+      </div>
+    </div>
+
+  </div><!-- /guide-steps -->
+
+  <!-- GRID BONUS ROW -->
+  <div class="bonus-row">
+    <div class="section-label" style="margin-bottom:24px">Схема грядок</div>
+    <div class="bonus-images">
+      <img src="images/5x_shots_so.png" alt="Схема ділянки з порожньою та заповненою сіткою грядок" />
+    </div>
+    <p class="bonus-caption">Режим планування: ліворуч — порожня сітка, праворуч — створені грядки A1, A2, B2</p>
+  </div>
+</section>
+
+
+<!-- ===== FAQ ===== -->
+<section id="faq">
+  <div class="faq-header">
+    <div class="section-label">FAQ</div>
+    <h2 class="section-title">Поширені запитання</h2>
+  </div>
+  <div class="faq-list">
+
+    <div class="faq-item">
+      <input type="checkbox" id="faq1" />
+      <label class="faq-question" for="faq1">
+        Чи потрібен інтернет для роботи застосунку?
+        <span class="faq-icon">+</span>
+      </label>
+      <div class="faq-answer">Більшість функцій (грядки, культури, таймери, архів) працюють офлайн. Інтернет потрібен для завантаження супутникової карти, отримання погоди та синхронізації з хмарою.</div>
+    </div>
+
+    <div class="faq-item">
+      <input type="checkbox" id="faq2" />
+      <label class="faq-question" for="faq2">
+        Чи збережуться дані після перевстановлення?
+        <span class="faq-icon">+</span>
+      </label>
+      <div class="faq-answer">Основні дані — ділянки, грядки, культури — зберігаються у хмарі та відновляться після входу в той самий акаунт. Архів врожаїв зберігається локально на пристрої та дублюється у хмарі.</div>
+    </div>
+
+    <div class="faq-item">
+      <input type="checkbox" id="faq3" />
+      <label class="faq-question" for="faq3">
+        Чому не відображається погода?
+        <span class="faq-icon">+</span>
+      </label>
+      <div class="faq-answer">Перевірте, чи встановлено місце погоди для ділянки — натисніть іконку 🌦 у заголовку екрану ділянки та введіть адресу. Також переконайтеся що є підключення до інтернету.</div>
+    </div>
+
+    <div class="faq-item">
+      <input type="checkbox" id="faq4" />
+      <label class="faq-question" for="faq4">
+        Де побачити площу ділянки?
+        <span class="faq-icon">+</span>
+      </label>
+      <div class="faq-answer">На екрані ділянки, у рядку статистики під назвою, завжди відображається площа в квадратних метрах. Площа розраховується автоматично за формулою Гаусса по GPS-координатах точок полігону.</div>
+    </div>
+
+    <div class="faq-item">
+      <input type="checkbox" id="faq5" />
+      <label class="faq-question" for="faq5">
+        Як видалити ділянку або грядку?
+        <span class="faq-icon">+</span>
+      </label>
+      <div class="faq-answer">Затисніть елемент у списку довгим натисканням — з'явиться меню з підтвердженням видалення.</div>
+    </div>
+
+    <div class="faq-item">
+      <input type="checkbox" id="faq6" />
+      <label class="faq-question" for="faq6">
+        Чи можна мати кілька ділянок?
+        <span class="faq-icon">+</span>
+      </label>
+      <div class="faq-answer">Так, кількість ділянок не обмежена. Кожна ділянка має свої грядки, культури та налаштування місця погоди.</div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="nav-logo" style="margin-bottom:12px">
+        <div class="nav-logo-icon">🌱</div>
+        GardenMap
+      </div>
+      <p>Мобільний застосунок для ведення городу на Android. Безкоштовно у Google Play.</p>
+    </div>
+    <div class="footer-links">
+      <h4>Застосунок</h4>
+      <ul>
+        <li><a href="#features">Функції</a></li>
+        <li><a href="#guide">Посібник</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#">Завантажити</a></li>
+      </ul>
+    </div>
+    <div class="footer-links">
+      <h4>Документи</h4>
+      <ul>
+        <li><a href="../EULA.md">Ліцензійна угода (EULA)</a></li>
+        <li><a href="mailto:a.vialtsev05@gmail.com">Зв'язок з розробником</a></li>
+      </ul>
+    </div>
+    <div class="footer-links">
+      <h4>Контакт</h4>
+      <ul>
+        <li><a href="mailto:a.vialtsev05@gmail.com">a.vialtsev05@gmail.com</a></li>
+        <li style="color:rgba(255,255,255,0.4); font-size:0.85rem;">Вяльцев Олександр Андрійович</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Вяльцев Олександр Андрійович. Всі права захищені.</span>
+    <span>GardenMap v1.0 · Android</span>
+  </div>
+</footer>
+
+</body>
+</html>
