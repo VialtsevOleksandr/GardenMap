@@ -45,3 +45,6 @@ yarn-error.*
 firebase.json
 
 /scripts
+
+# # Website screenshots (add manually, not tracked in git)
+# /website/images/
