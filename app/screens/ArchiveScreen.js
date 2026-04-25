@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { getLocalHarvests, deleteLocalHarvest, syncHarvestToLocal } from '../services/storageService';
 import { deleteHarvest, updateHarvest } from '../services/harvestsService';
+import PlantIcon from '../components/PlantIcon';
+import { resolveName, resolveVariety } from '../services/varietiesCatalog';
 
 const GREEN      = '#2d6a4f';
 const GREEN_DARK = '#1a3c2d';
@@ -71,14 +73,23 @@ export default function ArchiveScreen() {
     harvests.map(h => parseDate(h.harvestedAt)?.getFullYear()).filter(Boolean)
   )].sort((a, b) => b - a);
 
-  const cropNames = [...new Set(
-    harvests.map(h => h.cropName).filter(Boolean)
-  )].sort();
+  const cropOptions = [...new Map(
+    harvests
+      .map(h => {
+        const key = h.plantId || h.cropName;
+        if (!key) return null;
+        return [key, {
+          key,
+          label: resolveName({ plantId: h.plantId, name: h.cropName }, t) || h.cropName,
+        }];
+      })
+      .filter(Boolean)
+  ).values()].sort((a, b) => a.label.localeCompare(b.label));
 
   const filtered = harvests.filter(h => {
     const year = parseDate(h.harvestedAt)?.getFullYear();
     if (yearFilter && year !== yearFilter) return false;
-    if (cropFilter && h.cropName !== cropFilter) return false;
+    if (cropFilter && (h.plantId || h.cropName) !== cropFilter) return false;
     return true;
   });
 
@@ -86,7 +97,8 @@ export default function ArchiveScreen() {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   function confirmDelete(h) {
-    Alert.alert(t('delete'), `${h.cropName}?`, [
+    const localizedName = resolveName({ plantId: h.plantId, name: h.cropName }, t) || h.cropName;
+    Alert.alert(t('delete'), `${localizedName}?`, [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: () => doDelete(h) },
     ]);
@@ -153,17 +165,17 @@ export default function ArchiveScreen() {
         )}
 
         {/* Crop filter */}
-        {cropNames.length > 0 && (
+        {cropOptions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.filterLabel}>{t('filterByCrop')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-              {cropNames.map(name => (
+              {cropOptions.map(option => (
                 <TouchableOpacity
-                  key={name}
-                  style={[styles.chip, cropFilter === name && styles.chipActive]}
-                  onPress={() => setCropFilter(cropFilter === name ? null : name)}
+                  key={option.key}
+                  style={[styles.chip, cropFilter === option.key && styles.chipActive]}
+                  onPress={() => setCropFilter(cropFilter === option.key ? null : option.key)}
                 >
-                  <Text style={[styles.chipText, cropFilter === name && styles.chipTextActive]}>{name}</Text>
+                  <Text style={[styles.chipText, cropFilter === option.key && styles.chipTextActive]}>{option.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -199,13 +211,31 @@ export default function ArchiveScreen() {
               const dateStr = date
                 ? date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', year: 'numeric' })
                 : '—';
+              const localizedName = resolveName({ plantId: h.plantId, name: h.cropName }, t) || h.cropName || '—';
+              const varietyLabel = resolveVariety({ varietyId: h.varietyId, variety: h.variety }, t);
               const unitLabel = h.unit === 'L' ? t('unitLiters') : t('unitKg');
               const qColors   = QUALITY_COLORS[h.quality] ?? { bg: '#f4f4f4', text: '#888' };
               return (
                 <View key={h.id ?? i} style={styles.card}>
                   {/* Top row: name + date + actions */}
                   <View style={styles.cardTop}>
-                    <Text style={styles.cardName} numberOfLines={1}>{h.cropName || '—'}</Text>
+                    <View style={styles.cardHeadMain}>
+                      <View style={styles.cardIconWrap}>
+                        <PlantIcon
+                          plantId={h.plantId}
+                          id={h.plantId}
+                          itemId={h.plantId}
+                          name={localizedName}
+                          icon={h.icon}
+                          size={22}
+                          fallback="🌱"
+                        />
+                      </View>
+                      <View style={styles.cardTitleWrap}>
+                        <Text style={styles.cardName} numberOfLines={1}>{localizedName}</Text>
+                        {!!varietyLabel && <Text style={styles.cardVariety} numberOfLines={1}>{varietyLabel}</Text>}
+                      </View>
+                    </View>
                     <View style={styles.cardTopRight}>
                       <Text style={styles.cardDate}>{dateStr}</Text>
                       <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(h)}>
@@ -257,7 +287,11 @@ export default function ArchiveScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{t('editHarvestRecord')}</Text>
-            <Text style={styles.modalSubtitle}>{editTarget?.cropName}</Text>
+            <Text style={styles.modalSubtitle}>
+              {editTarget
+                ? (resolveName({ plantId: editTarget.plantId, name: editTarget.cropName }, t) || editTarget.cropName)
+                : ''}
+            </Text>
 
             {/* Unit toggle */}
             <Text style={styles.fieldLabel}>{t('yieldKg')}</Text>
@@ -383,7 +417,11 @@ const styles = StyleSheet.create({
     shadowRadius: 5, shadowOffset: { width: 0, height: 2 },
   },
   cardTop:        { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  cardHeadMain:   { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
+  cardIconWrap:   { width: 26, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  cardTitleWrap:  { flex: 1, minWidth: 0 },
   cardName:       { fontSize: 16, fontWeight: '700', color: GREEN_DARK, flex: 1, marginRight: 8 },
+  cardVariety:    { fontSize: 12, color: '#8c8c8c', marginTop: 2 },
   cardTopRight:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardDate:       { fontSize: 12, color: '#999', marginRight: 2 },
   editBtn:        { width: 28, height: 28, borderRadius: 8, backgroundColor: '#f0f7f4', alignItems: 'center', justifyContent: 'center' },

@@ -1082,9 +1082,8 @@ const styles = StyleSheet.create({
   detailStatLabel:  { fontSize: 11, color: '#888', marginTop: 4 },
   detailStatDivider:{ width: 1, height: 30, backgroundColor: '#d8ede2' },
   detailDryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     backgroundColor: '#f5f5f5',
     borderRadius: 10,
     paddingHorizontal: 14,
@@ -1093,7 +1092,7 @@ const styles = StyleSheet.create({
   },
   detailDryAlert:   { backgroundColor: '#fff8e1', borderWidth: 1, borderColor: '#ffcc02' },
   detailDryText:    { fontSize: 14, color: '#444', fontWeight: '500' },
-  detailAlertText:  { fontSize: 12, color: '#b07000', fontWeight: '600' },
+  detailAlertText:  { fontSize: 12, color: '#b07000', fontWeight: '600', marginTop: 4 },
   detailRefreshBtn: {
     alignSelf: 'center',
     paddingHorizontal: 28,

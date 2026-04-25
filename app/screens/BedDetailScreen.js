@@ -9,7 +9,7 @@ import { getCrops, deleteCrop, deactivateCrop, markWatered } from '../services/c
 import { addHarvest, updateHarvest, deleteHarvest, getHarvestsForBed } from '../services/harvestsService';
 import { getRotationAdvice, getNextCropSuggestions } from '../services/rotationRules';
 import { getCatalogPlants } from '../services/plantsCatalog';
-import { resolveVariety } from '../services/varietiesCatalog';
+import { resolveName, resolveVariety } from '../services/varietiesCatalog';
 import CropCard from '../components/CropCard';
 import PlantIcon from '../components/PlantIcon';
 import { sanitizeDecimal } from '../utils/inputSanitizers';
@@ -148,7 +148,20 @@ export default function BedDetailScreen({ route, navigation }) {
       if (editHarvest) {
         await updateHarvest(editHarvest.id, { yieldKg: yieldNum, quality: hQuality, notes: hNotes });
       } else {
-        await addHarvest({ cropId: crop.id, bedId: bed.id, plotId, cropName: crop.name, yieldKg: yieldNum, quality: hQuality, notes: hNotes, unit: hUnit });
+        await addHarvest({
+          cropId: crop.id,
+          bedId: bed.id,
+          plotId,
+          cropName: crop.name,
+          plantId: crop.plantId || null,
+          varietyId: crop.varietyId || null,
+          variety: crop.variety || '',
+          icon: crop.icon || null,
+          yieldKg: yieldNum,
+          quality: hQuality,
+          notes: hNotes,
+          unit: hUnit,
+        });
       }
       if (isFinal && crop.isActive) {
         await deactivateCrop(crop.id);
@@ -324,8 +337,11 @@ export default function BedDetailScreen({ route, navigation }) {
                       </View>
                       <View style={styles.pastInfo}>
                         <Text style={styles.pastName}>
-                          {c.name}{resolveVariety(c, t) ? ` (${resolveVariety(c, t)})` : ''}
+                          {resolveName(c, t)}
                         </Text>
+                        {!!resolveVariety(c, t) && (
+                          <Text style={styles.pastVariety}>{resolveVariety(c, t)}</Text>
+                        )}
                         <Text style={styles.pastDate}>
                           {t('planted', { date: formatDate(c.plantedAt) })}
                         </Text>
@@ -445,7 +461,10 @@ export default function BedDetailScreen({ route, navigation }) {
             <Text style={styles.modalTitle}>
               {harvestModal?.isFinal ? t('finalHarvestTitle') : t('harvestModalTitle')}
             </Text>
-            <Text style={styles.modalSubtitle}>{harvestModal?.crop?.name}</Text>
+            <Text style={styles.modalSubtitle}>
+              {resolveName(harvestModal?.crop, t)}
+              {resolveVariety(harvestModal?.crop, t) ? ` · ${resolveVariety(harvestModal?.crop, t)}` : ''}
+            </Text>
 
             {harvestModal?.isFinal && (
               <View style={styles.finalHint}>
@@ -623,8 +642,9 @@ const styles = StyleSheet.create({
   },
   pastIcon:   { fontSize: 22 },
   pastInfo:   { flex: 1 },
-  pastName:   { fontSize: 15, fontWeight: '700', color: GREEN_DARK },
-  pastDate:   { fontSize: 12, color: '#999', marginTop: 3 },
+  pastName:    { fontSize: 15, fontWeight: '700', color: GREEN_DARK },
+  pastVariety: { fontSize: 12, color: '#666', marginTop: 1, fontStyle: 'italic' },
+  pastDate:    { fontSize: 12, color: '#999', marginTop: 3 },
   pastHarvestRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f0f0',

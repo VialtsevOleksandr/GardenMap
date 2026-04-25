@@ -1,6 +1,7 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import PlantIcon from './PlantIcon';
+import { resolveName, resolveVariety } from '../services/varietiesCatalog';
 
 function daysRem(crop) {
   if (!crop?.plantedAt) return null;
@@ -62,10 +63,13 @@ export default function BedListItem({ bed, crop, onPress, onWater }) {
 
         <View style={styles.mid}>
           <Text style={styles.cropName} numberOfLines={1}>
-            {crop
-              ? `${crop.name}${crop.variety ? ` (${crop.variety})` : ''}`
-              : t('noCropInBed')}
+            {crop ? resolveName(crop, t) : t('noCropInBed')}
           </Text>
+          {crop && !!resolveVariety(crop, t) && (
+            <Text style={styles.cropVariety} numberOfLines={1}>
+              {resolveVariety(crop, t)}
+            </Text>
+          )}
           <Text style={styles.bedLabel}>{bed.label}</Text>
         </View>
 
@@ -153,8 +157,9 @@ const styles = StyleSheet.create({
   iconEmoji: { fontSize: 26 },
 
   mid: { flex: 1 },
-  cropName: { fontSize: 16, fontWeight: '700', color: '#1a3c2d' },
-  bedLabel:  { fontSize: 13, color: '#888', marginTop: 3 },
+  cropName:    { fontSize: 16, fontWeight: '700', color: '#1a3c2d' },
+  cropVariety: { fontSize: 12, color: '#666', marginTop: 1, fontStyle: 'italic' },
+  bedLabel:    { fontSize: 13, color: '#888', marginTop: 3 },
 
   chevron: { fontSize: 22, color: '#ccc', fontWeight: '300' },
 

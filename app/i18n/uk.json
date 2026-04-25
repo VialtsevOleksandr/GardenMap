@@ -69,7 +69,7 @@
   "humidity": "Вологість",
   "wind": "Вітер",
   "dryDays": "Днів без дощу: {{count}}",
-  "droughtAlert": "Не було дощу {{count}} днів!",
+  "droughtAlert": "Можливо, варто полити город",
   "rotationGood": "Хороша сівозміна",
   "rotationBad": "Погана сівозміна",
   "rotationOk": "Прийнятна сівозміна",

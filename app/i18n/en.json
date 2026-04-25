@@ -69,7 +69,7 @@
   "humidity": "Humidity",
   "wind": "Wind",
   "dryDays": "Dry days: {{count}}",
-  "droughtAlert": "No rain for {{count}} days!",
+  "droughtAlert": "You may want to water the garden",
   "rotationGood": "Good rotation",
   "rotationBad": "Bad rotation",
   "rotationOk": "Acceptable rotation",

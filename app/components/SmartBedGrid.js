@@ -4,27 +4,51 @@ import {
   StyleSheet, Dimensions, PanResponder, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import PlantIcon from './PlantIcon';
 
 const SCREEN_W = Dimensions.get('window').width;
 const H_PAD    = 12;
 const GAP      = 4;
-const CELL_PX  = 44; // fixed comfortable touch size; grid scrolls horizontally if wider than screen
+const CELL_PX_BASE = 44; // base cell size in pixels
+const ZOOM_MIN     = 0.5;
+const ZOOM_MAX     = 2.0;
+const ZOOM_STEP    = 0.25;
 
 // ── Utility functions ──────────────────────────────────────────────────────────
 
 export function getPlotGridInfo(polygon, cellSize) {
-  // Handles both { latitude, longitude } and { lat, lng } formats
   const lats = polygon.map(p => p.latitude ?? p.lat ?? 0);
   const lngs = polygon.map(p => p.longitude ?? p.lng ?? 0);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
   const avgLat = (minLat + maxLat) / 2;
-  const heightM = (maxLat - minLat) * 111320;
-  const widthM  = (maxLng - minLng) * 111320 * Math.cos(avgLat * Math.PI / 180);
-  const rows    = Math.max(1, Math.ceil(heightM / cellSize));
+  const avgLng = (minLng + maxLng) / 2;
+
+  // Convert GPS coords to local Cartesian metres (centroid = origin)
+  const meterCoords = polygon.map(p => gpsToMeters(
+    p.latitude ?? p.lat ?? 0, p.longitude ?? p.lng ?? 0, avgLat, avgLng,
+  ));
+
+  // Rotate to align grid with the polygon's dominant edge direction (OBB)
+  const angle   = findPrincipalAngle(meterCoords);
+  const rotated = meterCoords.map(p => rotatePoint(p.x, p.y, angle));
+
+  const obbMinX = Math.min(...rotated.map(p => p.x));
+  const obbMaxX = Math.max(...rotated.map(p => p.x));
+  const obbMinY = Math.min(...rotated.map(p => p.y));
+  const obbMaxY = Math.max(...rotated.map(p => p.y));
+
+  const widthM  = obbMaxX - obbMinX;
+  const heightM = obbMaxY - obbMinY;
   const cols    = Math.max(1, Math.ceil(widthM  / cellSize));
-  return { rows, cols, heightM, widthM, minLat, maxLat, minLng, maxLng, avgLat };
+  const rows    = Math.max(1, Math.ceil(heightM / cellSize));
+
+  return {
+    rows, cols, heightM, widthM,
+    minLat, maxLat, minLng, maxLng, avgLat,   // kept for backward compat
+    angle, obbMinX, obbMinY, rotatedPoly: rotated,
+  };
 }
 
 export function suggestCellSize(widthM, heightM) {
@@ -35,18 +59,55 @@ export function suggestCellSize(widthM, heightM) {
   return 5;
 }
 
-// Ray-casting in normalized [0,1] coords — avoids floating-point issues
-// with tiny GPS deltas. All points mapped to [0,1]×[0,1] bounding-box space.
-function isInNormPolygon(nx, ny, normPoly) {
+// ── Geo helpers — OBB (Oriented Bounding Box) ─────────────────────────────────
+
+function gpsToMeters(lat, lng, originLat, originLng) {
+  return {
+    x: (lng - originLng) * 111320 * Math.cos(originLat * Math.PI / 180),
+    y: (lat - originLat) * 111320,
+  };
+}
+
+function findPrincipalAngle(meterCoords) {
+  let maxLen = 0, angle = 0;
+  for (let i = 0, j = meterCoords.length - 1; i < meterCoords.length; j = i++) {
+    const dx = meterCoords[i].x - meterCoords[j].x;
+    const dy = meterCoords[i].y - meterCoords[j].y;
+    const len = Math.hypot(dx, dy);
+    if (len > maxLen) { maxLen = len; angle = Math.atan2(dy, dx); }
+  }
+  return angle;
+}
+
+function rotatePoint(x, y, angle) {
+  const cos = Math.cos(-angle), sin = Math.sin(-angle);
+  return { x: x * cos - y * sin, y: x * sin + y * cos };
+}
+
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
+function isInsidePolygon(px, py, poly) {
   let inside = false;
-  for (let i = 0, j = normPoly.length - 1; i < normPoly.length; j = i++) {
-    const xi = normPoly[i].x, yi = normPoly[i].y;
-    const xj = normPoly[j].x, yj = normPoly[j].y;
-    if (((yi > ny) !== (yj > ny)) &&
-        (nx < (xj - xi) * (ny - yi) / (yj - yi) + xi))
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    if (((yi > py) !== (yj > py)) && px < (xj - xi) * (py - yi) / (yj - yi) + xi)
       inside = !inside;
   }
   return inside;
+}
+
+function isInsideWithBuffer(px, py, poly, buffer) {
+  if (isInsidePolygon(px, py, poly)) return true;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+    if (distToSegment(px, py, poly[j].x, poly[j].y, poly[i].x, poly[i].y) <= buffer)
+      return true;
+  return false;
 }
 
 function daysRem(crop) {
@@ -76,6 +137,45 @@ function normalizeRect(rect) {
   };
 }
 
+// Returns the original grid (r, c) for a visual cell (vr, vc) given the display rotation.
+// Rotations are CW: 0=none, 1=90°, 2=180°, 3=270°.
+function visualToOriginal(vr, vc, rows, cols, rot) {
+  switch (rot) {
+    case 1: return { r: rows - 1 - vc, c: vr };
+    case 2: return { r: rows - 1 - vr, c: cols - 1 - vc };
+    case 3: return { r: vc,            c: cols - 1 - vr };
+    default: return { r: vr, c: vc };
+  }
+}
+
+// Returns the visual grid dimensions after rotation (90°/270° swap rows↔cols).
+function getVisualDims(rows, cols, rot) {
+  return rot % 2 === 0 ? { vRows: rows, vCols: cols } : { vRows: cols, vCols: rows };
+}
+
+// Inverse of visualToOriginal: original (r,c) → visual (vr,vc).
+function originalToVisual(r, c, rows, cols, rot) {
+  switch (rot) {
+    case 1: return { vr: c,            vc: rows - 1 - r };
+    case 2: return { vr: rows - 1 - r, vc: cols - 1 - c };
+    case 3: return { vr: cols - 1 - c, vc: r            };
+    default: return { vr: r, vc: c };
+  }
+}
+
+// Returns the visual bounding box (in cell indices) of a bed after rotation.
+function getBedVisualBounds(bed, rows, cols, rot) {
+  const sr = bed.spanRows ?? 1, sc = bed.spanCols ?? 1;
+  let minVr = Infinity, maxVr = -Infinity, minVc = Infinity, maxVc = -Infinity;
+  for (let r = bed.row; r < bed.row + sr; r++)
+    for (let c = bed.col; c < bed.col + sc; c++) {
+      const { vr, vc } = originalToVisual(r, c, rows, cols, rot);
+      if (vr < minVr) minVr = vr; if (vr > maxVr) maxVr = vr;
+      if (vc < minVc) minVc = vc; if (vc > maxVc) maxVc = vc;
+    }
+  return { minVr, maxVr, minVc, maxVc };
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMode, onBedCreated, onPressBed, onDeleteBed }) {
@@ -85,6 +185,16 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
   const [bedLabelInput, setBedLabelInput] = useState('');
   const [saving, setSaving]               = useState(false);
   const [showBedInfo, setShowBedInfo]     = useState(false);
+  const [extraRotation, setExtraRotation] = useState(0);   // 0–3 × 90°
+  const [zoomScale, setZoomScale]         = useState(1.0); // 0.5–2.0
+
+  // Load persisted rotation for this plot on mount
+  useEffect(() => {
+    if (!plot?.id) return;
+    AsyncStorage.getItem(`gardenmap_grid_rotation_${plot.id}`)
+      .then(val => { if (val !== null) setExtraRotation(parseInt(val, 10)); })
+      .catch(() => {});
+  }, [plot?.id]);
 
   useEffect(() => {
     const timerId = setInterval(() => {
@@ -110,32 +220,30 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
     };
   }, [plot, cellSize]);
 
-  const rows = gridInfo?.rows ?? 0;
-  const cols = gridInfo?.cols ?? 0;
-  const STEP = CELL_PX + GAP;
+  const rows   = gridInfo?.rows ?? 0;
+  const cols   = gridInfo?.cols ?? 0;
+  const { vRows, vCols } = getVisualDims(rows, cols, extraRotation);
+  const cellPx = Math.round(CELL_PX_BASE * zoomScale);
+  const step   = cellPx + GAP;
 
-  // ── Inactive cells (polygon masking, normalized coords) ───────────────────────
+  // ── Inactive cells — OBB-aligned grid + edge buffer ──────────────────────────
   const inactiveCells = useMemo(() => {
     if (!plot?.polygon?.length || plot.polygon.length < 3 || !cellSize || !rows || !cols) {
       return new Set();
     }
-    const { minLat, maxLat, minLng, maxLng } = gridInfo;
-    const latRange = maxLat - minLat;
-    const lngRange = maxLng - minLng;
-    if (!latRange || !lngRange) return new Set();
+    const { obbMinX, obbMinY, heightM, rotatedPoly } = gridInfo;
+    if (!rotatedPoly) return new Set(); // manual (rectangular) plot — all cells active
 
-    // Normalize polygon to [0,1]×[0,1] bounding-box space
-    const normPoly = plot.polygon.map(p => ({
-      x: ((p.longitude ?? p.lng ?? 0) - minLng) / lngRange,
-      y: ((p.latitude  ?? p.lat ?? 0) - minLat) / latRange,
-    }));
-
+    // 30% of cell size: cells that just clip the polygon edge stay active
+    const BUFFER = cellSize * 0.3;
     const inactive = new Set();
+
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const nx = (c + 0.5) / cols;         // 0=west  → 1=east
-        const ny = 1 - (r + 0.5) / rows;    // 1=north → 0=south (rows grow south)
-        if (!isInNormPolygon(nx, ny, normPoly)) inactive.add(`${r},${c}`);
+        // Cell centre in OBB-rotated metre space; r=0 is the northernmost row
+        const cx = obbMinX + (c + 0.5) * cellSize;
+        const cy = obbMinY + heightM - (r + 0.5) * cellSize;
+        if (!isInsideWithBuffer(cx, cy, rotatedPoly, BUFFER)) inactive.add(`${r},${c}`);
       }
     }
     return inactive;
@@ -164,8 +272,9 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
     cols: 0, rows: 0,
   });
   sr.current.editMode = editMode;
-  sr.current.cols     = cols;
-  sr.current.rows     = rows;
+  sr.current.cols     = vCols;
+  sr.current.rows     = vRows;
+  sr.current.step     = step;
 
   const onGridLayout = useCallback(() => {
     // pageX is the left edge of the grid View (before H_PAD).
@@ -182,12 +291,12 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
 
     onPanResponderGrant: (evt) => {
       const { pageX, pageY } = evt.nativeEvent;
-      const { gridOrigin, hScrollOffset, cols: C, rows: R } = sr.current;
+      const { gridOrigin, hScrollOffset, cols: C, rows: R, step: S } = sr.current;
       // localX: position within the cell grid (accounts for horizontal scroll)
       const localX = pageX - gridOrigin.x + hScrollOffset;
       const localY = pageY - gridOrigin.y;
-      const col = Math.max(0, Math.min(C - 1, Math.floor(localX / STEP)));
-      const row = Math.max(0, Math.min(R - 1, Math.floor(localY / STEP)));
+      const col = Math.max(0, Math.min(C - 1, Math.floor(localX / S)));
+      const row = Math.max(0, Math.min(R - 1, Math.floor(localY / S)));
       sr.current.selectionActive = true;
       setSelectionRect({ startRow: row, startCol: col, endRow: row, endCol: col });
     },
@@ -195,11 +304,11 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
     onPanResponderMove: (evt) => {
       if (!sr.current.selectionActive) return;
       const { pageX, pageY } = evt.nativeEvent;
-      const { gridOrigin, hScrollOffset, cols: C, rows: R } = sr.current;
+      const { gridOrigin, hScrollOffset, cols: C, rows: R, step: S } = sr.current;
       const localX = pageX - gridOrigin.x + hScrollOffset;
       const localY = pageY - gridOrigin.y;
-      const col = Math.max(0, Math.min(C - 1, Math.floor(localX / STEP)));
-      const row = Math.max(0, Math.min(R - 1, Math.floor(localY / STEP)));
+      const col = Math.max(0, Math.min(C - 1, Math.floor(localX / S)));
+      const row = Math.max(0, Math.min(R - 1, Math.floor(localY / S)));
       setSelectionRect(prev => prev ? { ...prev, endRow: row, endCol: col } : null);
     },
 
@@ -218,28 +327,46 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
 
   // ── Selection helpers ────────────────────────────────────────────────────────
   const normSel = selectionRect ? normalizeRect(selectionRect) : null;
-  const selDims = normSel ? {
-    w: ((normSel.maxC - normSel.minC + 1) * cellSize).toFixed(1),
-    h: ((normSel.maxR - normSel.minR + 1) * cellSize).toFixed(1),
-  } : null;
+  const selDims = normSel ? (() => {
+    // Transform the four corners of the visual selection into original space,
+    // then take the bounding box to get the physical size of the selection.
+    const pts = [
+      visualToOriginal(normSel.minR, normSel.minC, rows, cols, extraRotation),
+      visualToOriginal(normSel.minR, normSel.maxC, rows, cols, extraRotation),
+      visualToOriginal(normSel.maxR, normSel.minC, rows, cols, extraRotation),
+      visualToOriginal(normSel.maxR, normSel.maxC, rows, cols, extraRotation),
+    ];
+    const spanR = Math.max(...pts.map(p => p.r)) - Math.min(...pts.map(p => p.r)) + 1;
+    const spanC = Math.max(...pts.map(p => p.c)) - Math.min(...pts.map(p => p.c)) + 1;
+    return { w: (spanC * cellSize).toFixed(1), h: (spanR * cellSize).toFixed(1) };
+  })() : null;
 
   // ── Bed creation ─────────────────────────────────────────────────────────────
   async function handleConfirmBed() {
     if (!bedLabelInput.trim() || !normSel) return;
-    const { minR, maxR, minC, maxC } = normSel;
 
-    for (let r = minR; r <= maxR; r++)
-      for (let c = minC; c <= maxC; c++) {
-        if (cellBedMap[`${r},${c}`]) {
-          Alert.alert(t('bedOverlap'), t('bedOverlapMsg'));
-          return;
-        }
-        if (inactiveCells.has(`${r},${c}`)) {
-          Alert.alert(t('inactiveZone'), t('selectionHasInactive'));
-          return;
-        }
+    // Map each visual cell in the selection to its original (r, c)
+    const origCells = [];
+    for (let vr = normSel.minR; vr <= normSel.maxR; vr++)
+      for (let vc = normSel.minC; vc <= normSel.maxC; vc++)
+        origCells.push(visualToOriginal(vr, vc, rows, cols, extraRotation));
+
+    for (const { r, c } of origCells) {
+      if (cellBedMap[`${r},${c}`]) {
+        Alert.alert(t('bedOverlap'), t('bedOverlapMsg'));
+        return;
       }
+      if (inactiveCells.has(`${r},${c}`)) {
+        Alert.alert(t('inactiveZone'), t('selectionHasInactive'));
+        return;
+      }
+    }
 
+    // Bounding box of the original cells — this is what we store in Firestore
+    const origRs   = origCells.map(p => p.r);
+    const origCs   = origCells.map(p => p.c);
+    const minR     = Math.min(...origRs), maxR = Math.max(...origRs);
+    const minC     = Math.min(...origCs), maxC = Math.max(...origCs);
     const spanRows = maxR - minR + 1;
     const spanCols = maxC - minC + 1;
     setSaving(true);
@@ -281,6 +408,39 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
         </View>
       )}
 
+      {/* Grid controls: rotate + zoom */}
+      <View style={styles.controlBar}>
+        <TouchableOpacity
+          style={styles.controlBtn}
+          onPress={() => {
+            const next = (extraRotation + 1) % 4;
+            setExtraRotation(next);
+            if (plot?.id)
+              AsyncStorage.setItem(`gardenmap_grid_rotation_${plot.id}`, String(next)).catch(() => {});
+          }}
+        >
+          <Text style={styles.controlBtnText}>↻ 90°</Text>
+        </TouchableOpacity>
+
+        <View style={styles.zoomGroup}>
+          <TouchableOpacity
+            style={[styles.controlBtn, zoomScale <= ZOOM_MIN && styles.controlBtnDisabled]}
+            onPress={() => setZoomScale(z => Math.max(ZOOM_MIN, parseFloat((z - ZOOM_STEP).toFixed(2))))}
+            disabled={zoomScale <= ZOOM_MIN}
+          >
+            <Text style={styles.controlBtnText}>−</Text>
+          </TouchableOpacity>
+          <Text style={styles.zoomLabel}>{Math.round(zoomScale * 100)}%</Text>
+          <TouchableOpacity
+            style={[styles.controlBtn, zoomScale >= ZOOM_MAX && styles.controlBtnDisabled]}
+            onPress={() => setZoomScale(z => Math.min(ZOOM_MAX, parseFloat((z + ZOOM_STEP).toFixed(2))))}
+            disabled={zoomScale >= ZOOM_MAX}
+          >
+            <Text style={styles.controlBtnText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Horizontal scroll — disabled in edit mode so PanResponder can work */}
       <ScrollView
         horizontal
@@ -296,92 +456,65 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
           style={styles.grid}
           {...panResponder.panHandlers}
         >
-          {Array.from({ length: rows }, (_, r) => (
-            <View key={r} style={[styles.row, { marginBottom: GAP }]}>
-              {Array.from({ length: cols }, (_, c) => {
+          {Array.from({ length: vRows }, (_, vr) => (
+            <View key={vr} style={[styles.row, { marginBottom: GAP }]}>
+              {Array.from({ length: vCols }, (_, vc) => {
+                const { r, c }   = visualToOriginal(vr, vc, rows, cols, extraRotation);
                 const key        = `${r},${c}`;
                 const isInactive = inactiveCells.has(key);
                 const bed        = cellBedMap[key];
                 const crop       = bed ? (cropsByBed?.[bed.id] ?? null) : null;
                 const isSelected = editMode && !!normSel &&
-                  r >= normSel.minR && r <= normSel.maxR &&
-                  c >= normSel.minC && c <= normSel.maxC;
+                  vr >= normSel.minR && vr <= normSel.maxR &&
+                  vc >= normSel.minC && vc <= normSel.maxC;
                 const { bg, border, text } = cellColor(crop, isInactive, isSelected, !!bed);
                 const isTopLeft  = bed && bed.row === r && bed.col === c;
                 const isCheckerCell = bed
                   ? ((r - bed.row) + (c - bed.col)) % 2 === 0
                   : false;
-                const days       = crop ? daysRem(crop) : null;
-                const daysLabel  = !crop ? null :
-                  days == null ? null :
-                  days <= 0 ? '🍅' :
-                  days <= 7 ? `${days}д!` : `${days}д`;
-                const infoModeText = days == null
-                  ? '—'
-                  : days <= 0
-                    ? t('harvestTime')
-                    : `${days}${t('days')}`;
-
                 const cellStyle = [
                   styles.cell,
                   {
-                    width:           CELL_PX,
-                    height:          CELL_PX,
+                    width:           cellPx,
+                    height:          cellPx,
                     backgroundColor: bg,
                     borderColor:     border,
-                    marginRight:     c < cols - 1 ? GAP : 0,
+                    marginRight:     vc < vCols - 1 ? GAP : 0,
                     borderWidth:     isSelected ? 2.5 : 1.5,
                   },
                 ];
 
+                // icon mode: checkerboard of crop icons; info mode: cells stay empty — overlay draws the text
                 const content = isInactive ? (
                   <Text style={[styles.inactiveIcon, { color: text }]}>⊘</Text>
-                ) : bed && crop && !editMode && !showBedInfo && isCheckerCell ? (
+                ) : !bed ? (
+                  <Text style={[styles.emptyHint, { color: border }]}>
+                    {editMode ? '+' : '🌱'}
+                  </Text>
+                ) : editMode || showBedInfo ? null
+                  : crop && isCheckerCell ? (
                   <PlantIcon
                     plantId={crop.plantId}
                     id={crop.id}
                     itemId={crop.itemId}
                     name={crop.name}
                     icon={crop.icon}
-                    size={20}
+                    size={Math.round(cellPx * 0.48)}
                     fallback="🌱"
                     textStyle={[styles.cropIconFallback, { color: text }]}
                   />
-                ) : bed && crop && !editMode && showBedInfo && isTopLeft ? (
-                  <>
-                    <Text style={[styles.bedLabelTxt, styles.bedInfoLabel, { color: text }]} numberOfLines={1}>
-                      {bed.label}
-                    </Text>
-                    <Text style={[styles.daysTxt, styles.bedInfoDays, { color: text }]} numberOfLines={1}>
-                      {infoModeText}
-                    </Text>
-                  </>
-                ) : isTopLeft ? (
-                  <>
-                    <Text style={[styles.bedLabelTxt, { color: text }]} numberOfLines={1}>
-                      {bed.label}
-                    </Text>
-                    {crop && (
-                      <Text style={[styles.cropTxt, { color: text }]} numberOfLines={1}>
-                        {crop.name}
-                      </Text>
-                    )}
-                    {daysLabel && (
-                      <Text style={[styles.daysTxt, { color: text }]}>{daysLabel}</Text>
-                    )}
-                  </>
-                ) : !bed ? (
-                  <Text style={[styles.emptyHint, { color: border }]}>
-                    {editMode ? '+' : '🌱'}
+                ) : !crop && isTopLeft ? (
+                  <Text style={[styles.bedLabelTxt, { color: text, fontSize: Math.max(8, Math.min(11, cellPx * 0.22)) }]} numberOfLines={2}>
+                    {bed.label}
                   </Text>
                 ) : null;
 
                 if (isInactive || editMode) {
-                  return <View key={c} style={cellStyle}>{content}</View>;
+                  return <View key={vc} style={cellStyle}>{content}</View>;
                 }
                 return (
                   <TouchableOpacity
-                    key={c}
+                    key={vc}
                     style={cellStyle}
                     onPress={() => bed && onPressBed(bed)}
                     onLongPress={() => bed && onDeleteBed && onDeleteBed(bed)}
@@ -393,6 +526,46 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
               })}
             </View>
           ))}
+
+          {/* ── Info-mode overlays: rendered last so they appear on top ── */}
+          {showBedInfo && !editMode && beds.map(bed => {
+            const crop = cropsByBed?.[bed.id] ?? null;
+            const { minVr, maxVr, minVc, maxVc } = getBedVisualBounds(bed, rows, cols, extraRotation);
+            const overlayLeft = H_PAD + minVc * (cellPx + GAP);
+            const overlayTop  = 4    + minVr * (cellPx + GAP); // 4 = styles.grid.paddingTop
+            const ow = (maxVc - minVc + 1) * cellPx + (maxVc - minVc) * GAP;
+            const oh = (maxVr - minVr + 1) * cellPx + (maxVr - minVr) * GAP;
+            const days = crop ? daysRem(crop) : null;
+            const infoText = days == null ? '—'
+              : days <= 0 ? t('harvestTime')
+              : `${days} ${t('days')}`;
+            const infoColor = days != null && days <= 0 ? '#b71c1c'
+              : days != null && days <= 7 ? '#e65100' : '#2d6a4f';
+            const borderCol = crop
+              ? (days != null && days <= 0 ? '#ef9a9a' : days != null && days <= 7 ? '#f9a825' : '#66bb6a')
+              : '#c9a97a';
+            const minDim  = Math.min(ow, oh);
+            const labelSz = Math.max(10, Math.min(18, minDim * 0.26));
+            const daysSz  = Math.max(9,  Math.min(15, minDim * 0.21));
+            return (
+              <View key={`ov-${bed.id}`} pointerEvents="none" style={{
+                position: 'absolute', left: overlayLeft, top: overlayTop,
+                width: ow, height: oh,
+                backgroundColor: 'rgba(255,255,255,0.93)',
+                borderRadius: 8, borderWidth: 2, borderColor: borderCol,
+                justifyContent: 'center', alignItems: 'center', padding: 4,
+              }}>
+                <Text style={{ fontWeight: '800', fontSize: labelSz, color: '#1a3c2d', textAlign: 'center' }} numberOfLines={2}>
+                  {bed.label}
+                </Text>
+                {crop && (
+                  <Text style={{ fontSize: daysSz, fontWeight: '700', color: infoColor, marginTop: 3, textAlign: 'center' }} numberOfLines={1}>
+                    {infoText}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -444,6 +617,42 @@ export default function SmartBedGrid({ beds, cropsByBed, plot, cellSize, editMod
 const styles = StyleSheet.create({
   wrapper: { paddingBottom: 8 },
 
+  controlBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: H_PAD,
+    marginBottom: 8,
+  },
+  controlBtn: {
+    backgroundColor: '#e8f5e9',
+    borderWidth: 1,
+    borderColor: '#a5d6a7',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  controlBtnDisabled: {
+    opacity: 0.35,
+  },
+  controlBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2d6a4f',
+  },
+  zoomGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  zoomLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#555',
+    minWidth: 42,
+    textAlign: 'center',
+  },
+
   dimBadge: {
     alignSelf: 'center',
     backgroundColor: '#1976d2',
@@ -482,8 +691,6 @@ const styles = StyleSheet.create({
   cropTxt:     { fontSize: 9,  fontWeight: '600', textAlign: 'center', marginTop: 1 },
   daysTxt:     { fontSize: 9,  fontWeight: '700', marginTop: 1 },
   cropIconFallback: { fontSize: 20 },
-  bedInfoLabel: { fontSize: 11, fontWeight: '800' },
-  bedInfoDays: { fontSize: 9, fontWeight: '700' },
   inactiveIcon:{ fontSize: 14 },
   emptyHint:   { fontSize: 16, opacity: 0.3 },
 

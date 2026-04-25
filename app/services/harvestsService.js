@@ -27,7 +27,7 @@ export async function syncPendingHarvests() {
 // 1. Saves to AsyncStorage immediately (works without internet)
 // 2. Tries to sync any previously pending harvests
 // 3. Saves current harvest to Firestore; if it fails, leaves it as _pending
-export async function addHarvest({ cropId, bedId, plotId, cropName, yieldKg, quality, notes, unit }) {
+export async function addHarvest({ cropId, bedId, plotId, cropName, plantId, varietyId, variety, icon, yieldKg, quality, notes, unit }) {
   const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = new Date().toISOString();
   const data = {
@@ -35,6 +35,10 @@ export async function addHarvest({ cropId, bedId, plotId, cropName, yieldKg, qua
     bedId,
     plotId,
     cropName: cropName || '',
+    plantId: plantId || null,
+    varietyId: varietyId || null,
+    variety: variety || '',
+    icon: icon || null,
     yieldKg: Number(yieldKg),
     quality: quality || 'good',
     notes: notes || '',
